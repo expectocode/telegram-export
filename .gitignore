@@ -1,2 +1,3 @@
 client.conf
+*.db
 *.session
