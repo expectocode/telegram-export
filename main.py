@@ -1,23 +1,18 @@
 #!/bin/env python3
+import os
+import json
+
 from telethon import TelegramClient
+from telethon.extensions import BinaryReader
 from telethon.errors import SessionPasswordNeededError, UsernameNotOccupiedError
 from json.decoder import JSONDecodeError
 from getpass import getpass
 from time import sleep
-import json
 
 from telethon.tl.functions.messages import GetHistoryRequest
 
 
-def save_messages(client):
-    try:
-        target = client.get_entity(input("Enter target's username: "))
-        if not target:
-            raise UsernameNotOccupiedError()
-    except UsernameNotOccupiedError:
-        print('Nobody uses such username.')
-        return
-
+def save_messages(client, target):
     params = {
         'peer': target,
         'offset_id': 0,
@@ -47,6 +42,25 @@ def save_messages(client):
     print('Done.')
 
 
+def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
+    if not force and os.path.isfile(cache_file):
+        with open(cache_file, 'rb') as f, BinaryReader(stream=f) as reader:
+            entities = []
+            while True:
+                try:
+                    entities.append(reader.tgread_object())
+                except BufferError:
+                    break  # No more data left to read
+            return entities
+
+    with open(cache_file, 'wb') as f:
+        entities = client.get_dialogs(limit=None)[1]
+        for entity in entities:
+            f.write(bytes(entity))
+
+    return entities
+
+
 if __name__ == '__main__':
     try:
         with open('client.conf') as f:
@@ -64,7 +78,8 @@ if __name__ == '__main__':
             except SessionPasswordNeededError:
                 client.sign_in(password=getpass())
 
-        save_messages(client)
+        for entity in fetch_dialogs(client):
+            save_messages(client, entity)
     except KeyboardInterrupt:
         pass
     finally:
