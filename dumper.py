@@ -28,11 +28,11 @@ class Dumper():
                                  "OriginalDate INT NOT NULL,"
                                  "FromID INT,"
                                  "ChannelPost INT,"
-                                 "PostAuthor TEXT)")
+                                 "PostAuthor TEXT) WITHOUT ROWID")
                 self.cur.execute("CREATE TABLE Media("
                                  "ID INT PRIMARY KEY NOT NULL,"
                                  "FileName TEXT,"
-                                 "TelegramReference TEXT NOT NULL);")
+                                 "TelegramReference TEXT NOT NULL) WITHOUT ROWID")
                 self.cur.execute("CREATE TABLE User("
                                  "ID INT NOT NULL,"
                                  "DateUpdated INT NOT NULL,"
@@ -42,7 +42,7 @@ class Dumper():
                                  "Bio TEXT,"
                                  "PictureID INT NULL,"
                                  "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                                 "PRIMARY KEY (ID, DateUpdated))")
+                                 "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
                 self.cur.execute("CREATE TABLE Channel("
                                  "ID INT NOT NULL,"
@@ -54,7 +54,7 @@ class Dumper():
                                  "Title TEXT NOT NULL,"
                                  "Username TEXT,"
                                  "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                                 "PRIMARY KEY (ID, DateUpdated))")
+                                 "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
                 self.cur.execute("CREATE TABLE Supergroup("
                                  "ID INT NOT NULL,"
@@ -65,7 +65,7 @@ class Dumper():
                                  "Title TEXT NOT NULL,"
                                  "Username TEXT,"
                                  "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                                 "PRIMARY KEY (ID, DateUpdated))")
+                                 "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
                 self.cur.execute("CREATE TABLE Chat("
                                  "ID INT NOT NULL,"
@@ -75,7 +75,7 @@ class Dumper():
                                  "Title TEXT NOT NULL,"
                                  "MigratedToID INT,"
                                  "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                                 "PRIMARY KEY (ID, DateUpdated))")
+                                 "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
                 self.cur.execute("CREATE TABLE Message("
                                  "ID INT NOT NULL,"
@@ -88,7 +88,7 @@ class Dumper():
                                  "PostAuthor TEXT,"
                                  "MediaID INT NULl,"
                                  "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
-                                 "PRIMARY KEY (ID, ContextID))")
+                                 "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
 
 if __name__ == '__main__':
     dumper = Dumper()
