@@ -12,11 +12,12 @@ logger = logging.getLogger(__name__)
 class Dumper():
     """Class to interface with the database for exports"""
 
-    def __init__(self, settings, database_name='export'):
+    def __init__(self, config, database_name='export'):
         """Initialise the dumper.
         Params:
         - settings: a dictionary of settings;
         - database_name: filename without file extension"""
+        self.config = config
         self.conn = sqlite3.connect('{}.db'.format(database_name))
         self.cur = self.conn.cursor()
         # If this is a new database, populate it
@@ -33,11 +34,11 @@ class Dumper():
             # and yes, '' is a valid script
 
             self.cur.execute("CREATE TABLE Forward("
-                             "ID INT PRIMARY KEY NOT NULL,"
+                             "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                              "OriginalDate INT NOT NULL,"
-                             "FromID INT,"
+                             "FromID INT," # User or Channel ID
                              "ChannelPost INT,"
-                             "PostAuthor TEXT) WITHOUT ROWID")
+                             "PostAuthor TEXT)")
 
             self.cur.execute("CREATE TABLE Media("
                              "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -62,33 +63,33 @@ class Dumper():
             self.cur.execute("CREATE TABLE Channel("
                              "ID INT NOT NULL,"
                              "DateUpdated INT NOT NULL,"
-                             "CreatorID INT,"
+                             # "CreatorID INT,"
                              "About TEXT,"
                              # "Signatures INT,"
-                             "PictureID INT,"
                              "Title TEXT NOT NULL,"
                              "Username TEXT,"
+                             "PictureID INT,"
                              "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
                              "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
             self.cur.execute("CREATE TABLE Supergroup("
                              "ID INT NOT NULL,"
                              "DateUpdated INT NOT NULL,"
-                             "CreatorID INT,"
+                             # "CreatorID INT,"
                              "About TEXT,"
-                             "PictureID INT,"
                              "Title TEXT NOT NULL,"
                              "Username TEXT,"
+                             "PictureID INT,"
                              "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
                              "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
             self.cur.execute("CREATE TABLE Chat("
                              "ID INT NOT NULL,"
                              "DateUpdated INT NOT NULL,"
-                             "CreatorID INT,"
-                             "PictureID INT,"
+                             # "CreatorID INT,"
                              "Title TEXT NOT NULL,"
                              "MigratedToID INT,"
+                             "PictureID INT,"
                              "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
                              "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
@@ -99,17 +100,45 @@ class Dumper():
                              "FromID INT,"
                              "Message TEXT,"
                              "ReplyMessageID INT,"
-                             "ForwardedFromID INT,"
+                             "ForwardID INT,"
                              "PostAuthor TEXT,"
                              "MediaID INT,"
+                             "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
                              "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
                              "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
             self.conn.commit()
 
+    def dump_message(self, message, forward_id, media_id):
+        #TODO handle edits/deletes (fundamental problems with non-long-running exporter)
+        """Dump a Message into the Message table
+        The caller is responsible for ensuring to_id is a unique and correct contextID
+        Params:
+        - Message to dump,
+        - ID of Forward in the DB (or None),
+        - ID of message Media in the DB (or None)
+        Returns: -"""
+        values = (message.id,
+                  message.to_id,
+                  message.date.timestamp(),
+                  message.from_id,
+                  message.message,
+                  message.reply_to_msg_id,
+                  forward_id,
+                  message.post_author,
+                  media_id)
+        try:
+            self.cur.execute("INSERT INTO User VALUES (?,?,?,?,?,?,?,?,?)", values)
+            self.conn.commit()
+        except sqlite3.IntegrityError as error:
+            self.conn.rollback()
+            logger.error("Integrity error: %s", str(error))
+            raise
+
     def dump_user(self, user_full, photo_id):
         #TODO: Use invalidation time
         """Dump a UserFull into the User table
-        Params: UserFull to dump, MediaID of the profile photo in the DB"""
+        Params: UserFull to dump, MediaID of the profile photo in the DB
+        Returns -"""
         # Rationale for UserFull rather than User is to get bio
         timestamp = round(time.time())
         values = (user_full.user.id,
@@ -129,21 +158,104 @@ class Dumper():
             logger.error("Integrity error: %s", str(error))
             raise
 
-    def dump_filelocation(self, file_location):
+    def dump_channel(self, channel_full, channel, photo_id):
         #TODO: Use invalidation time
-        """Dump a FileLocation into the Media table"""
-        values = (None,
-                  file_location.local_id,
-                  file_location.volume_id,
-                  file_location.dc_id,
-                  file_location.secret)
+        """Dump a Channel into the Channel table
+        Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
+        Returns -"""
+        # Need to get the full object too for 'about' info
+        timestamp = round(time.time())
+        values = (channel.id,
+                  timestamp,
+                  channel_full.about,
+                  channel.title,
+                  channel.username,
+                  photo_id)
         try:
-            self.cur.execute("INSERT INTO User VALUES (?,?,?,?,?)", values)
+            self.cur.execute("INSERT INTO Channel VALUES (?,?,?,?,?,?)", values)
             self.conn.commit()
         except sqlite3.IntegrityError as error:
             self.conn.rollback()
             logger.error("Integrity error: %s", str(error))
             raise
+
+    def dump_supergroup(self, supergroup_full, supergroup, photo_id):
+        #TODO: Use invalidation time
+        """Dump a Supergroup into the Supergroup table
+        Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
+        Returns -"""
+        # Need to get the full object too for 'about' info
+        timestamp = round(time.time())
+        values = (supergroup.id,
+                  timestamp,
+                  supergroup_full.about,
+                  supergroup.title,
+                  supergroup.username,
+                  photo_id)
+        try:
+            self.cur.execute("INSERT INTO Supergroup VALUES (?,?,?,?,?,?)", values)
+            self.conn.commit()
+        except sqlite3.IntegrityError as error:
+            self.conn.rollback()
+            logger.error("Integrity error: %s", str(error))
+            raise
+
+    def dump_chat(self, chat, photo_id):
+        #TODO: Use invalidation time
+        """Dump a Chat into the Chat table
+        Params: Chat to dump, MediaID of the profile photo in the DB
+        Returns -"""
+        timestamp = round(time.time())
+        values = (chat.id,
+                  timestamp,
+                  chat.title,
+                  chat.migrated_to,
+                  photo_id)
+        try:
+            self.cur.execute("INSERT INTO Chat VALUES (?,?,?,?,?)", values)
+            self.conn.commit()
+        except sqlite3.IntegrityError as error:
+            self.conn.rollback()
+            logger.error("Integrity error: %s", str(error))
+            raise
+
+    def dump_filelocation(self, file_location):
+        """Dump a FileLocation into the Media table
+        Params: FileLocation Telethon object
+        Returns: ID of inserted row"""
+        values = (None, # Database will handle this
+                  file_location.local_id,
+                  file_location.volume_id,
+                  file_location.dc_id,
+                  file_location.secret)
+        try:
+            self.cur.execute("INSERT INTO Media VALUES (?,?,?,?,?)", values)
+            self.conn.commit()
+            return self.cur.lastrowid
+        except sqlite3.IntegrityError as error:
+            self.conn.rollback()
+            logger.error("Integrity error: %s", str(error))
+            raise
+
+    def dump_forward(self, forward):
+        """Dump a message forward relationship into the Forward table
+        The caller is responsible for ensuring from_id is a unique and correct ID
+        Params: MessageFwdHeader Telethon object
+        Returns: ID of inserted row"""
+        values = (None, # Database will handle this
+                  forward.date.timestamp(),
+                  forward.from_id,
+                  forward.channel_post,
+                  forward.post_author)
+        try:
+            self.cur.execute("INSERT INTO Forward VALUES (?,?,?,?,?)", values)
+            self.conn.commit()
+            return self.cur.lastrowid
+        except sqlite3.IntegrityError as error:
+            self.conn.rollback()
+            logger.error("Integrity error: %s", str(error))
+            raise
+
 
 def test():
     """Enter an example user to test dump_user"""
