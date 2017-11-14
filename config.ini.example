@@ -1,8 +1,24 @@
+# Configuration file for telegram-export. Default values are commented.
+# Use ; or # for comment lines
+
 [TelegramAPI]
+
+# You must edit these values to use the exporter
+# You can either get your own from my.telegram.org
+# Or use a published one:
+# https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/SourceFiles/config.h#L247
 ApiId = 12345e
 ApiHash = 0123456789abcdef0123456789abcdef
-SessionName = anon
+
+# This can be anything
+; SessionName = exporter
+SessionName = exporter
+
+# Your phone number. You must supply this.
 PhoneNumber = xxxxxxxxxx
 
 [Dumper]
+
+# See explanation for 'Invalidation time'
+; ForceNoChangeDumpAfter = 2880
 ForceNoChangeDumpAfter = 2880
