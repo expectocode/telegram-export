@@ -1,8 +1,6 @@
 #!/bin/env python3
-import json
 import os
 from getpass import getpass
-from json.decoder import JSONDecodeError
 from time import sleep
 import configparser
 
@@ -80,10 +78,21 @@ def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
 
     return entities
 
+def load_config():
+    # Load from file
+    defaults = {'ForceNoChangeDumpAfter':7200}
+    config = configparser.ConfigParser(defaults)
+    config.read('config.ini')
+
+    # Convert minutes to seconds
+    config['Dumper']['ForceNoChangeDumpAfter'] = str(
+        config.getint('Dumper', 'ForceNoChangeDumpAfter') * 60)
+
+    return config
+
 
 if __name__ == '__main__':
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    config = load_config()
     dumper = Dumper(config['Dumper'])
     config = config['TelegramAPI']
 
@@ -104,4 +113,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     finally:
+        print('Done, disconnecting...')
         client.disconnect()
