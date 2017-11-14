@@ -83,7 +83,7 @@ def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
-    config.read('client.ini')
+    config.read('config.ini')
     dumper = Dumper(config['Dumper'])
     config = config['TelegramAPI']
 
