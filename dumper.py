@@ -56,6 +56,7 @@ class Dumper():
                              "Phone TEXT,"
                              "Bio TEXT,"
                              "Bot INTEGER,"
+                             "CommonChatsCount INT NOT NULL,"
                              "PictureID INT,"
                              "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
                              "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
@@ -127,7 +128,7 @@ class Dumper():
                   message.post_author,
                   media_id)
         try:
-            self.cur.execute("INSERT INTO User VALUES (?,?,?,?,?,?,?,?,?)", values)
+            self.cur.execute("INSERT INTO Message VALUES (?,?,?,?,?,?,?,?,?)", values)
             self.conn.commit()
         except sqlite3.IntegrityError as error:
             self.conn.rollback()
@@ -138,7 +139,7 @@ class Dumper():
         #TODO: Use invalidation time
         """Dump a UserFull into the User table
         Params: UserFull to dump, MediaID of the profile photo in the DB
-        Returns -"""
+        Returns -, or False if not added"""
         # Rationale for UserFull rather than User is to get bio
         timestamp = round(time.time())
         values = (user_full.user.id,
@@ -149,9 +150,18 @@ class Dumper():
                   user_full.user.phone,
                   user_full.about,
                   user_full.user.bot,
+                  user_full.common_chats_count,
                   photo_id)
+
+        self.cur.execute('SELECT * FROM User ORDER BY DateUpdated DESC')
+        last = self.cur.fetchone()
+        print(self.config['ForceNoChangeDumpAfter'])
+        if ( self.rows_are_same(values, last, ignore_column=1)
+                and values[1] - last[1] < self.config['ForceNoChangeDumpAfter'] ):
+            return False
+
         try:
-            self.cur.execute("INSERT INTO User VALUES (?,?,?,?,?,?,?,?,?)", values)
+            self.cur.execute("INSERT INTO User VALUES (?,?,?,?,?,?,?,?,?,?)", values)
             self.conn.commit()
         except sqlite3.IntegrityError as error:
             self.conn.rollback()
@@ -256,11 +266,25 @@ class Dumper():
             logger.error("Integrity error: %s", str(error))
             raise
 
+    @staticmethod
+    def rows_are_same(row2, row1, ignore_column):
+        """Compare two records, ignoring the DateUpdated"""
+        # Note that sqlite stores True as 1 and False as 0
+        # but python handles this fine anyway (probably)
+        if not row1 or not row2:
+            return False
+        if len(row1) != len(row2):
+            return False
+        for i,x in enumerate(row1):
+            if (i != ignore_column) and x != row2[i]:
+                return False
+        return True
+
 
 def test():
     """Enter an example user to test dump_user"""
     #TODO: real tests
-    settings = {'invalidation time':5}
+    settings = {'ForceNoChangeDumpAfter':432000}
     dumper = Dumper(settings)
     from telethon.tl.types import User, UserFull
     usr = User(1,
