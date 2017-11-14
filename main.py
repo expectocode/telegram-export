@@ -4,6 +4,7 @@ import os
 from getpass import getpass
 from json.decoder import JSONDecodeError
 from time import sleep
+import configparser
 
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
@@ -81,19 +82,18 @@ def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
 
 
 if __name__ == '__main__':
-    dumper = Dumper(None)  # TODO Use actual config
+    config = configparser.ConfigParser()
+    config.read('client.ini')
+    dumper = Dumper(config['Dumper'])
+    config = config['TelegramAPI']
 
-    try:
-        with open('client.conf') as f:
-            conf = json.load(f)
-    except (FileNotFoundError, JSONDecodeError, KeyError) as e:
-        print('Failed to load configuration:', e)
-
-    client = TelegramClient(conf['name'], conf['api_id'], conf['api_hash'])
+    client = TelegramClient(
+        config['SessionName'], config['ApiId'], config['ApiHash']
+    )
     try:
         client.connect()
         if not client.is_user_authorized():
-            client.sign_in(conf['phone'])
+            client.sign_in(config['PhoneNumber'])
             try:
                 client.sign_in(code=input('Enter code: '))
             except SessionPasswordNeededError:

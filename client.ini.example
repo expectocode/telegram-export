@@ -1,0 +1,8 @@
+[TelegramAPI]
+ApiId = 12345e
+ApiHash = 0123456789abcdef0123456789abcdef
+SessionName = anon
+PhoneNumber = xxxxxxxxxx
+
+[Dumper]
+ForceNoChangeDumpAfter = 2880
