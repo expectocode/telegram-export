@@ -19,6 +19,10 @@ PhoneNumber = xxxxxxxxxx
 
 [Dumper]
 
-# See explanation for 'Invalidation time'
-; ForceNoChangeDumpAfter = 2880
-ForceNoChangeDumpAfter = 2880
+# Database filename (without '.db')
+; DBFileName = export
+DBFileName = export
+
+# See explanation for 'Invalidation time'. In minutes.
+; ForceNoChangeDumpAfter = 7200
+ForceNoChangeDumpAfter = 7200
