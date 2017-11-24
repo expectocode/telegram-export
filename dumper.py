@@ -12,13 +12,13 @@ logger = logging.getLogger(__name__)
 class Dumper():
     """Class to interface with the database for exports"""
 
-    def __init__(self, config, database_name='export'):
+    def __init__(self, config):
         """Initialise the dumper.
         Params:
         - settings: a dictionary of settings;
         - database_name: filename without file extension"""
         self.config = config
-        self.conn = sqlite3.connect('{}.db'.format(database_name))
+        self.conn = sqlite3.connect('{}.db'.format(self.config['DBFileName']))
         self.cur = self.conn.cursor()
         # If this is a new database, populate it
         self.cur.execute("SELECT name FROM sqlite_master "
@@ -103,6 +103,7 @@ class Dumper():
                              "ReplyMessageID INT,"
                              "ForwardID INT,"
                              "PostAuthor TEXT,"
+                             "ViewCount INT,"
                              "MediaID INT,"
                              "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
                              "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
@@ -126,9 +127,10 @@ class Dumper():
                   message.reply_to_msg_id,
                   forward_id,
                   message.post_author,
+                  message.views,
                   media_id)
         try:
-            self.cur.execute("INSERT INTO Message VALUES (?,?,?,?,?,?,?,?,?)", values)
+            self.cur.execute("INSERT INTO Message VALUES (?,?,?,?,?,?,?,?,?,?)", values)
             self.conn.commit()
         except sqlite3.IntegrityError as error:
             self.conn.rollback()
@@ -155,7 +157,6 @@ class Dumper():
 
         self.cur.execute('SELECT * FROM User ORDER BY DateUpdated DESC')
         last = self.cur.fetchone()
-        print(self.config['ForceNoChangeDumpAfter'])
         if ( self.rows_are_same(values, last, ignore_column=1)
                 and values[1] - last[1] < self.config['ForceNoChangeDumpAfter'] ):
             return False
@@ -284,7 +285,7 @@ class Dumper():
 def test():
     """Enter an example user to test dump_user"""
     #TODO: real tests
-    settings = {'ForceNoChangeDumpAfter':432000}
+    settings = {'ForceNoChangeDumpAfter':432000,'DBFileName':'export'}
     dumper = Dumper(settings)
     from telethon.tl.types import User, UserFull
     usr = User(1,
