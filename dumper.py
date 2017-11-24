@@ -155,9 +155,8 @@ class Dumper():
 
         self.cur.execute('SELECT * FROM User ORDER BY DateUpdated DESC')
         last = self.cur.fetchone()
-        print(self.config['ForceNoChangeDumpAfter'])
-        if ( self.rows_are_same(values, last, ignore_column=1)
-                and values[1] - last[1] < self.config['ForceNoChangeDumpAfter'] ):
+        if (self.rows_are_same(values, last, ignore_column=1)
+                and values[1] - last[1] < int(self.config['ForceNoChangeDumpAfter'])):
             return False
 
         try:
