@@ -8,7 +8,7 @@ from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 from telethon.extensions import BinaryReader
 from telethon.tl import types as tl, functions as rpc
-from telethon.utils import get_peer_id, resolve_id
+from telethon.utils import get_peer_id, resolve_id, get_display_name
 
 from dumper import Dumper
 
@@ -26,10 +26,14 @@ def save_messages(client, dumper, target):
 
     found = 0
     entities = {}
-    print('Starting with', target)
+    print('Starting with', get_display_name(target))
+    latest = dumper.get_lowest_message(get_peer_id(target, add_mark=True))
+    if latest:
+        print('Resuming at', latest.date, '(', latest.id, ')')
+        request.offset_id = latest.id
+        request.offset_date = latest.date
+
     while True:
-        # TODO Actually save the the users
-        # TODO Allow resuming
         # TODO How should edits be handled? Always read first two days?
         history = client(request)
         entities.update({get_peer_id(c, add_mark=True): c for c in history.chats})
@@ -81,6 +85,7 @@ def save_messages(client, dumper, target):
                 dump_supergroup(full_channel, entity, None)
             else:
                 dump_channel(full_channel.full_chat, entity, None)
+    print('Done!\n')
 
 
 def fetch_dialogs(client, cache_file='dialogs.tl', force=False):

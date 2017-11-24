@@ -3,6 +3,9 @@
 import sqlite3
 import time
 import logging
+from datetime import datetime
+from telethon.tl import types as tl
+from telethon.utils import get_peer_id, resolve_id
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -264,6 +267,30 @@ class Dumper():
             self.conn.rollback()
             logger.error("Integrity error: %s", str(error))
             raise
+
+    def get_lowest_message(self, context_id):
+        """Returns the lowest message available for context_id.
+        Used to determine from where a backup should resume."""
+        self.cur.execute("""SELECT * FROM Message WHERE ID = (
+                                SELECT MIN(ID) FROM Message
+                                WHERE ContextID = ?
+                            )
+                         """, (context_id,))
+        message = self.cur.fetchone()
+        if message:
+            to_id, to_type = resolve_id(message[1])
+            return tl.Message(
+                id=message[0],
+                to_id=to_type(to_id),
+                date=datetime.fromtimestamp(message[2]),
+                from_id=message[3],
+                message=message[4],
+                reply_to_msg_id=message[5],
+                fwd_from=None,  # TODO Select from the database
+                post_author=message[6],
+                media=None  # TODO Select from the database
+            )
+
 
     @staticmethod
     def rows_are_same(row2, row1, ignore_column):
