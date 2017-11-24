@@ -8,7 +8,7 @@ from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 from telethon.extensions import BinaryReader
 from telethon.tl import types as tl, functions as rpc
-from telethon.utils import get_peer_id
+from telethon.utils import get_peer_id, resolve_id
 
 from dumper import Dumper
 
@@ -25,11 +25,15 @@ def save_messages(client, dumper, target):
     )
 
     found = 0
+    entities = {}
+    print('Starting with', target)
     while True:
         # TODO Actually save the the users
         # TODO Allow resuming
         # TODO How should edits be handled? Always read first two days?
         history = client(request)
+        entities.update({get_peer_id(c, add_mark=True): c for c in history.chats})
+        entities.update({get_peer_id(u, add_mark=True): u for u in history.users})
         if not history.messages:
             break
 
@@ -57,7 +61,26 @@ def save_messages(client, dumper, target):
             found, total_messages, found / total_messages
         ))
         sleep(1)
-    print('Done.')
+
+    print('Done. Retrieving full information about entities.')
+    # TODO Save their profile picture
+    for mid, entity in entities.items():
+        eid, etype = resolve_id(mid)
+        if etype == tl.PeerUser:
+            full_user = client(rpc.users.GetFullUserRequest(entity))
+            sleep(1)
+            dumper.dump_user(full_user, None)
+
+        elif etype == tl.PeerChat:
+            dumper.dump_chat(entity, None)
+
+        elif etype == tl.PeerChannel:
+            full_channel = client(rpc.channels.GetFullChannelRequest(entity))
+            sleep(1)
+            if entity.megagroup:
+                dump_supergroup(full_channel, entity, None)
+            else:
+                dump_channel(full_channel.full_chat, entity, None)
 
 
 def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
