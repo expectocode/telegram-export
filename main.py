@@ -39,9 +39,9 @@ def get_file_location(obj):
 
     elif isinstance(obj, tl.Document):  # DocumentEmpty are ignored
         return tl.InputDocumentFileLocation(
-            id=obj.media.document.id,
-            access_hash=obj.media.document.access_hash,
-            version=obj.media.document.version
+            id=obj.id,
+            access_hash=obj.access_hash,
+            version=obj.version
         )
 
 
@@ -131,22 +131,28 @@ def save_messages(client, dumper, target):
     print('Done. Retrieving full information about entities.')
     # TODO Save their profile picture
     for mid, entity in entities.items():
+        file_location = get_file_location(entity)
+        if file_location:
+            photo_id = dumper.dump_filelocation(file_location)
+        else:
+            photo_id = None
+
         eid, etype = resolve_id(mid)
         if etype == tl.PeerUser:
             full_user = client(rpc.users.GetFullUserRequest(entity))
             sleep(1)
-            dumper.dump_user(full_user, None)
+            dumper.dump_user(full_user, photo_id=photo_id)
 
         elif etype == tl.PeerChat:
-            dumper.dump_chat(entity, None)
+            dumper.dump_chat(entity, photo_id=photo_id)
 
         elif etype == tl.PeerChannel:
             full_channel = client(rpc.channels.GetFullChannelRequest(entity))
             sleep(1)
             if entity.megagroup:
-                dump_supergroup(full_channel, entity, None)
+                dump_supergroup(full_channel, entity, photo_id=photo_id)
             else:
-                dump_channel(full_channel.full_chat, entity, None)
+                dump_channel(full_channel.full_chat, entity, photo_id=photo_id)
     print('Done!\n')
 
 

@@ -3,6 +3,7 @@
 import sqlite3
 import time
 import logging
+import warnings
 from datetime import datetime
 from telethon.tl import types as tl
 from telethon.utils import get_peer_id, resolve_id
@@ -239,6 +240,10 @@ class Dumper():
         """Dump a FileLocation into the Media table
         Params: FileLocation Telethon object
         Returns: ID of inserted row"""
+        if isinstance(file_location, tl.InputDocumentFileLocation):
+            warnings.warn("Dumping InputDocumentFileLocation not implemented.")
+            return
+
         values = (None, # Database will handle this
                   file_location.local_id,
                   file_location.volume_id,
