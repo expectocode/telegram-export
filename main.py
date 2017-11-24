@@ -13,6 +13,38 @@ from telethon.utils import get_peer_id, resolve_id, get_display_name
 from dumper import Dumper
 
 
+def get_file_location(obj):
+    if isinstance(obj, tl.Message):
+        if obj.media:
+            if isinstance(obj.media, tl.MessageMediaDocument):
+                return get_file_location(obj.media.document)
+            elif isinstance(obj.media, tl.MessageMediaPhoto):
+                return get_file_location(obj.media.photo)
+
+    elif isinstance(obj, tl.MessageService):
+        if isinstance(obj.action, tl.MessageActionChatEditPhoto):
+            return get_file_location(obj.action.photo)
+
+    elif isinstance(obj, (tl.User, tl.Chat, tl.Channel)):
+        return get_file_location(obj.photo)
+
+    elif isinstance(obj, tl.Photo):  # PhotoEmpty are ignored
+        # FileLocation or FileLocationUnavailable
+        return obj.sizes[-1].location
+
+    elif isinstance(obj, (tl.UserProfilePhoto, tl.ChatPhoto)):
+        # FileLocation or FileLocationUnavailable
+        # If the latter we could test whether obj.photo_small is more worthy
+        return obj.photo_big
+
+    elif isinstance(obj, tl.Document):  # DocumentEmpty are ignored
+        return tl.InputDocumentFileLocation(
+            id=obj.media.document.id,
+            access_hash=obj.media.document.access_hash,
+            version=obj.media.document.version
+        )
+
+
 def save_messages(client, dumper, target):
     request = rpc.messages.GetHistoryRequest(
         peer=target,
@@ -59,20 +91,28 @@ def save_messages(client, dumper, target):
                 stop_at = dumper.get_message(target_id, 'MAX').id
 
         for m in history.messages:
-            fwd_id = None
+            file_location = get_file_location(m)
+            if file_location:
+                media_id = dumper.dump_filelocation(file_location)
+            else:
+                media_id = None
+
             if isinstance(m, tl.Message):
                 m.to_id = get_peer_id(m.to_id, add_mark=True)
                 if m.fwd_from:
                     fwd_id = dumper.dump_forward(m.fwd_from)
+                else:
+                    fwd_id = None
+
+                dumper.dump_message(m, forward_id=fwd_id, media_id=media_id)
+
             elif isinstance(m, tl.MessageService):
                 m.to_id = get_peer_id(m.to_id, add_mark=True)
-                continue  # TODO Don't skip messageService's
+                dumper.dump_message_service(m, media_id=media_id)
+
             else:
                 print('Skipping message', type(m).__name__)
                 continue
-
-            # TODO Handle media
-            dumper.dump_message(m, forward_id=fwd_id, media_id=None)
 
         found += len(history.messages)
         total_messages = getattr(history, 'count', len(history.messages))

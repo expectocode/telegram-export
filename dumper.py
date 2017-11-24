@@ -138,6 +138,10 @@ class Dumper():
             logger.error("Integrity error: %s", str(error))
             raise
 
+    def dump_message_service(self, message, media_id):
+        """Dump a MessageService into the ??? table"""
+        # ddg.gg/%68%61%68%61%20%79%65%73?ia=images
+
     def dump_user(self, user_full, photo_id):
         #TODO: Use invalidation time
         """Dump a UserFull into the User table
@@ -238,7 +242,9 @@ class Dumper():
         values = (None, # Database will handle this
                   file_location.local_id,
                   file_location.volume_id,
-                  file_location.dc_id,
+                  # Neither of the following have .dc_id:
+                  #   InputDocumentFileLocation, FileLocationUnavailable
+                  getattr(file_location, 'dc_id', None),
                   file_location.secret)
         try:
             self.cur.execute("INSERT INTO Media VALUES (?,?,?,?,?)", values)
