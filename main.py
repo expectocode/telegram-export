@@ -89,6 +89,7 @@ def save_messages(client, dumper, target):
                 # so we have a chance to spot edits?
                 reached_end = True
                 stop_at = dumper.get_message(target_id, 'MAX').id
+                continue
 
         for m in history.messages:
             file_location = get_file_location(m)
