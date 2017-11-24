@@ -23,23 +23,40 @@ def save_messages(client, dumper, target):
         max_id=0,
         min_id=0
     )
-
-    found = 0
-    entities = {}
     print('Starting with', get_display_name(target))
-    latest = dumper.get_lowest_message(get_peer_id(target, add_mark=True))
+
+    target_id = get_peer_id(target, add_mark=True)
+    latest = dumper.get_message(target_id, 'MIN')
     if latest:
+        # First try resuming
         print('Resuming at', latest.date, '(', latest.id, ')')
         request.offset_id = latest.id
         request.offset_date = latest.date
 
+    found = 0
+    entities = {}
+    reached_end = False
+    stop_at = float('inf')
     while True:
         # TODO How should edits be handled? Always read first two days?
         history = client(request)
         entities.update({get_peer_id(c, add_mark=True): c for c in history.chats})
         entities.update({get_peer_id(u, add_mark=True): u for u in history.users})
         if not history.messages:
-            break
+            if reached_end:
+                break
+            else:
+                # Once we reach the end, restart looking for new.
+                # TODO The first round may be unnecessary. Once we reach the
+                # end once, there will never be older messages. How can we
+                # detect whether the last message in the database is the last
+                # one, or simply where the backup stopped? Maybe a field
+                # "reached end"? Maybe "last id for chat"?
+                #
+                # TODO Maybe we should set stop_at = date + timedelta(days=2)
+                # so we have a chance to spot edits?
+                reached_end = True
+                stop_at = dumper.get_message(target_id, 'MAX').id
 
         for m in history.messages:
             fwd_id = None
@@ -61,6 +78,10 @@ def save_messages(client, dumper, target):
         total_messages = getattr(history, 'count', len(history.messages))
         request.offset_id = min(m.id for m in history.messages)
         request.offset_date = min(m.date for m in history.messages)
+        if request.offset_id >= stop_at:
+            print('Already have the rest of messages, done.')
+            break
+
         print('Downloaded {}/{} ({:.1%})'.format(
             found, total_messages, found / total_messages
         ))

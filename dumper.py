@@ -268,14 +268,17 @@ class Dumper():
             logger.error("Integrity error: %s", str(error))
             raise
 
-    def get_lowest_message(self, context_id):
-        """Returns the lowest message available for context_id.
+    def get_message(self, context_id, which):
+        """Returns MAX or MIN message available for context_id.
         Used to determine from where a backup should resume."""
+        if which not in ('MIN', 'MAX'):
+            raise ValueError('Parameter', which, 'must be MIN or MAX.')
+
         self.cur.execute("""SELECT * FROM Message WHERE ID = (
-                                SELECT MIN(ID) FROM Message
+                                SELECT {which}(ID) FROM Message
                                 WHERE ContextID = ?
                             )
-                         """, (context_id,))
+                         """.format(which=which), (context_id,))
         message = self.cur.fetchone()
         if message:
             to_id, to_type = resolve_id(message[1])
