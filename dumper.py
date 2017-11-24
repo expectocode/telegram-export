@@ -3,6 +3,10 @@
 import sqlite3
 import time
 import logging
+import warnings
+from datetime import datetime
+from telethon.tl import types as tl
+from telethon.utils import get_peer_id, resolve_id
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -137,6 +141,10 @@ class Dumper():
             logger.error("Integrity error: %s", str(error))
             raise
 
+    def dump_message_service(self, message, media_id):
+        """Dump a MessageService into the ??? table"""
+        # ddg.gg/%68%61%68%61%20%79%65%73?ia=images
+
     def dump_user(self, user_full, photo_id):
         #TODO: Use invalidation time
         """Dump a UserFull into the User table
@@ -157,8 +165,8 @@ class Dumper():
 
         self.cur.execute('SELECT * FROM User ORDER BY DateUpdated DESC')
         last = self.cur.fetchone()
-        if ( self.rows_are_same(values, last, ignore_column=1)
-                and values[1] - last[1] < self.config['ForceNoChangeDumpAfter'] ):
+        if (self.rows_are_same(values, last, ignore_column=1)
+                and values[1] - last[1] < int(self.config['ForceNoChangeDumpAfter'])):
             return False
 
         try:
@@ -234,10 +242,16 @@ class Dumper():
         """Dump a FileLocation into the Media table
         Params: FileLocation Telethon object
         Returns: ID of inserted row"""
+        if isinstance(file_location, tl.InputDocumentFileLocation):
+            warnings.warn("Dumping InputDocumentFileLocation not implemented.")
+            return
+
         values = (None, # Database will handle this
                   file_location.local_id,
                   file_location.volume_id,
-                  file_location.dc_id,
+                  # Neither of the following have .dc_id:
+                  #   InputDocumentFileLocation, FileLocationUnavailable
+                  getattr(file_location, 'dc_id', None),
                   file_location.secret)
         try:
             self.cur.execute("INSERT INTO Media VALUES (?,?,?,?,?)", values)
@@ -266,6 +280,33 @@ class Dumper():
             self.conn.rollback()
             logger.error("Integrity error: %s", str(error))
             raise
+
+    def get_message(self, context_id, which):
+        """Returns MAX or MIN message available for context_id.
+        Used to determine from where a backup should resume."""
+        if which not in ('MIN', 'MAX'):
+            raise ValueError('Parameter', which, 'must be MIN or MAX.')
+
+        self.cur.execute("""SELECT * FROM Message WHERE ID = (
+                                SELECT {which}(ID) FROM Message
+                                WHERE ContextID = ?
+                            )
+                         """.format(which=which), (context_id,))
+        message = self.cur.fetchone()
+        if message:
+            to_id, to_type = resolve_id(message[1])
+            return tl.Message(
+                id=message[0],
+                to_id=to_type(to_id),
+                date=datetime.fromtimestamp(message[2]),
+                from_id=message[3],
+                message=message[4],
+                reply_to_msg_id=message[5],
+                fwd_from=None,  # TODO Select from the database
+                post_author=message[6],
+                media=None  # TODO Select from the database
+            )
+
 
     @staticmethod
     def rows_are_same(row2, row1, ignore_column):
