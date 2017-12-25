@@ -13,7 +13,8 @@ logging.basicConfig(
     level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-class Dumper():
+
+class Dumper:
     """Class to interface with the database for exports"""
 
     def __init__(self, config):
@@ -40,7 +41,7 @@ class Dumper():
             self.cur.execute("CREATE TABLE Forward("
                              "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                              "OriginalDate INT NOT NULL,"
-                             "FromID INT," # User or Channel ID
+                             "FromID INT,"  # User or Channel ID
                              "ChannelPost INT,"
                              "PostAuthor TEXT)")
 
@@ -115,7 +116,7 @@ class Dumper():
             self.conn.commit()
 
     def dump_message(self, message, forward_id, media_id):
-        #TODO handle edits/deletes (fundamental problems with non-long-running exporter)
+        # TODO handle edits/deletes (fundamental problems with non-long-running exporter)
         """Dump a Message into the Message table
         The caller is responsible for ensuring to_id is a unique and correct contextID
         Params:
@@ -146,7 +147,7 @@ class Dumper():
         # ddg.gg/%68%61%68%61%20%79%65%73?ia=images
 
     def dump_user(self, user_full, photo_id):
-        #TODO: Use invalidation time
+        # TODO: Use invalidation time
         """Dump a UserFull into the User table
         Params: UserFull to dump, MediaID of the profile photo in the DB
         Returns -, or False if not added"""
@@ -178,7 +179,7 @@ class Dumper():
             raise
 
     def dump_channel(self, channel_full, channel, photo_id):
-        #TODO: Use invalidation time
+        # TODO: Use invalidation time
         """Dump a Channel into the Channel table
         Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
         Returns -"""
@@ -199,7 +200,7 @@ class Dumper():
             raise
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id):
-        #TODO: Use invalidation time
+        # TODO: Use invalidation time
         """Dump a Supergroup into the Supergroup table
         Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
         Returns -"""
@@ -220,7 +221,7 @@ class Dumper():
             raise
 
     def dump_chat(self, chat, photo_id):
-        #TODO: Use invalidation time
+        # TODO: Use invalidation time
         """Dump a Chat into the Chat table
         Params: Chat to dump, MediaID of the profile photo in the DB
         Returns -"""
@@ -246,7 +247,7 @@ class Dumper():
             warnings.warn("Dumping InputDocumentFileLocation not implemented.")
             return
 
-        values = (None, # Database will handle this
+        values = (None,  # Database will handle this
                   file_location.local_id,
                   file_location.volume_id,
                   # Neither of the following have .dc_id:
@@ -267,7 +268,7 @@ class Dumper():
         The caller is responsible for ensuring from_id is a unique and correct ID
         Params: MessageFwdHeader Telethon object
         Returns: ID of inserted row"""
-        values = (None, # Database will handle this
+        values = (None,  # Database will handle this
                   forward.date.timestamp(),
                   forward.from_id,
                   forward.channel_post,
@@ -307,7 +308,6 @@ class Dumper():
                 media=None  # TODO Select from the database
             )
 
-
     @staticmethod
     def rows_are_same(row2, row1, ignore_column):
         """Compare two records, ignoring the DateUpdated"""
@@ -317,7 +317,7 @@ class Dumper():
             return False
         if len(row1) != len(row2):
             return False
-        for i,x in enumerate(row1):
+        for i, x in enumerate(row1):
             if (i != ignore_column) and x != row2[i]:
                 return False
         return True
@@ -325,8 +325,8 @@ class Dumper():
 
 def test():
     """Enter an example user to test dump_user"""
-    #TODO: real tests
-    settings = {'ForceNoChangeDumpAfter':432000,'DBFileName':'export'}
+    # TODO: real tests
+    settings = {'ForceNoChangeDumpAfter': 432000, 'DBFileName': 'export'}
     dumper = Dumper(settings)
     from telethon.tl.types import User, UserFull
     usr = User(1,
@@ -341,6 +341,7 @@ def test():
                        2,
                        about='test')
     dumper.dump_user(usrfull, 1)
+
 
 if __name__ == '__main__':
     test()

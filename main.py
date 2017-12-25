@@ -176,7 +176,7 @@ def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
 
 def load_config():
     # Load from file
-    defaults = {'ForceNoChangeDumpAfter':7200,'DBFileName':'export'}
+    defaults = {'ForceNoChangeDumpAfter': 7200,'DBFileName': 'export'}
     config = configparser.ConfigParser(defaults)
     config.read('config.ini')
 
