@@ -3,4 +3,5 @@
 *.bin
 *.tl
 *.db
+.idea/*
 __pycache__/

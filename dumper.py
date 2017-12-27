@@ -8,9 +8,6 @@ from datetime import datetime
 from telethon.tl import types as tl
 from telethon.utils import get_peer_id, resolve_id
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 

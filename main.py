@@ -3,6 +3,7 @@ import os
 from getpass import getpass
 from time import sleep
 import configparser
+import logging
 
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
@@ -11,6 +12,12 @@ from telethon.tl import types as tl, functions as rpc
 from telethon.utils import get_peer_id, resolve_id, get_display_name
 
 from dumper import Dumper
+
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.ERROR)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def get_file_location(obj):
@@ -139,6 +146,9 @@ def save_messages(client, dumper, target):
 
         eid, etype = resolve_id(mid)
         if etype == tl.PeerUser:
+            if entity.deleted:
+                continue
+                # Otherwise, the empty first name causes an IntegrityError
             full_user = client(rpc.users.GetFullUserRequest(entity))
             sleep(1)
             dumper.dump_user(full_user, photo_id=photo_id)
@@ -150,9 +160,9 @@ def save_messages(client, dumper, target):
             full_channel = client(rpc.channels.GetFullChannelRequest(entity))
             sleep(1)
             if entity.megagroup:
-                dump_supergroup(full_channel, entity, photo_id=photo_id)
+                dumper.dump_supergroup(full_channel, entity, photo_id=photo_id)
             else:
-                dump_channel(full_channel.full_chat, entity, photo_id=photo_id)
+                dumper.dump_channel(full_channel.full_chat, entity, photo_id=photo_id)
     print('Done!\n')
 
 
