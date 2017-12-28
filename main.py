@@ -65,38 +65,39 @@ def save_messages(client, dumper, target):
     print('Starting with', get_display_name(target))
 
     target_id = get_peer_id(target)
-    latest = dumper.get_message(target_id, 'MIN')
+
+    # Resume from the last dumped message. It's important to
+    # remember that we go -> 0, although it can be confusing.
+    latest = dumper.get_last_dumped_message(target_id)
     if latest:
-        # First try resuming
         print('Resuming at', latest.date, '(', latest.id, ')')
+        # Offset is exclusive, which makes it easier
         request.offset_id = latest.id
         request.offset_date = latest.date
 
+    # Stop as soon as we reach the highest ID we already have.
+    # If we don't have such ID, we must reach the end or until
+    # we don't receive any more messages.
+    stop_at = getattr(dumper.get_message(target_id, 'MAX'), 'id', 0)
+
+    # OR if the offset is SMALLER than which we should stop at, it
+    # means we're AFTER that limit, which means we haven't finished
+    # reaching the end. If this is the case, we should stop at 0.
+    if latest.id <= stop_at:
+        stop_at = 0
+
     found = 0
     entities = {}
-    reached_end = False
-    stop_at = float('inf')
     while True:
         # TODO How should edits be handled? Always read first two days?
         history = client(request)
         entities.update({get_peer_id(c): c for c in history.chats})
         entities.update({get_peer_id(u): u for u in history.users})
         if not history.messages:
-            if reached_end:
-                break
-            else:
-                # Once we reach the end, restart looking for new.
-                # TODO The first round may be unnecessary. Once we reach the
-                # end once, there will never be older messages. How can we
-                # detect whether the last message in the database is the last
-                # one, or simply where the backup stopped? Maybe a field
-                # "reached end"? Maybe "last id for chat"?
-                #
-                # TODO Maybe we should set stop_at = date + timedelta(days=2)
-                # so we have a chance to spot edits?
-                reached_end = True
-                stop_at = dumper.get_message(target_id, 'MAX').id
-                continue
+            # TODO Once we reach the end, restart looking for new.
+            # If the first message we return is already in the database,
+            # it means there's nothing new and we have fully finished.
+            break
 
         for m in history.messages:
             file_location = get_file_location(m)
@@ -126,7 +127,15 @@ def save_messages(client, dumper, target):
         total_messages = getattr(history, 'count', len(history.messages))
         request.offset_id = min(m.id for m in history.messages)
         request.offset_date = min(m.date for m in history.messages)
-        if request.offset_id >= stop_at:
+
+        # Keep track of the last target ID (smallest one),
+        # so we can resume from here in case of interruption.
+        dumper.update_last_dumped_message(target_id, request.offset_id)
+
+        # We dump forward (message ID going towards 0), so as soon
+        # as the minimum message ID (now in offset ID) is less than
+        # the highest ID ("closest" bound we need to reach), stop.
+        if request.offset_id <= stop_at:
             print('Already have the rest of messages, done.')
             break
 
@@ -167,7 +176,6 @@ def save_messages(client, dumper, target):
 
 
 def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
-    """
     if not force and os.path.isfile(cache_file):
         with open(cache_file, 'rb') as f, BinaryReader(stream=f) as reader:
             entities = []
@@ -177,7 +185,6 @@ def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
                 except BufferError:
                     break  # No more data left to read
             return entities
-    """
     with open(cache_file, 'wb') as f:
         entities = [d.entity for d in client.get_dialogs(limit=None)]
         for entity in entities:

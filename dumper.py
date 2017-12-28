@@ -110,6 +110,11 @@ class Dumper:
                              "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
                              "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
                              "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
+
+            self.cur.execute("CREATE TABLE LastMessage("
+                             "ContextID INT NOT NULL,"
+                             "ID INT NOT NULL,"
+                             "PRIMARY KEY (ContextID)) WITHOUT ROWID")
             self.conn.commit()
 
     def dump_message(self, message, forward_id, media_id):
@@ -281,7 +286,7 @@ class Dumper:
 
     def get_message(self, context_id, which):
         """Returns MAX or MIN message available for context_id.
-        Used to determine from where a backup should resume."""
+        Used to determine at which point a backup should stop."""
         if which not in ('MIN', 'MAX'):
             raise ValueError('Parameter', which, 'must be MIN or MAX.')
 
@@ -290,20 +295,49 @@ class Dumper:
                                 WHERE ContextID = ?
                             )
                          """.format(which=which), (context_id,))
-        message = self.cur.fetchone()
-        if message:
-            to_id, to_type = resolve_id(message[1])
-            return tl.Message(
-                id=message[0],
-                to_id=to_type(to_id),
-                date=datetime.fromtimestamp(message[2]),
-                from_id=message[3],
-                message=message[4],
-                reply_to_msg_id=message[5],
-                fwd_from=None,  # TODO Select from the database
-                post_author=message[6],
-                media=None  # TODO Select from the database
-            )
+        return Dumper.message_from_tuple(self.cur.fetchone())
+
+    def update_last_dumped_message(self, context_id, msg_id):
+        """Updates the last dumped message"""
+
+        try:
+            self.cur.execute("INSERT OR REPLACE INTO LastMessage VALUES (?,?)",
+                             (context_id, msg_id))
+            self.conn.commit()
+        except sqlite3.IntegrityError as error:
+            self.conn.rollback()
+            logger.error("Integrity error: %s", str(error))
+            raise
+
+    def get_last_dumped_message(self, context_id):
+        """Returns the last dumped message for a context iD.
+        Used to determine from where a backup should resume."""
+        self.cur.execute("SELECT ID FROM LastMessage WHERE ContextID = ?",
+                         (context_id,))
+        tuple_ = self.cur.fetchone()
+        if tuple_:
+            self.cur.execute("""SELECT * FROM Message WHERE
+                                ID = ? AND ContextID = ?""",
+                             (tuple_[0], context_id))
+            return Dumper.message_from_tuple(self.cur.fetchone())
+
+    @staticmethod
+    def message_from_tuple(message_tuple):
+        if not message_tuple:
+            return
+
+        to_id, to_type = resolve_id(message_tuple[1])
+        return tl.Message(
+            id=message_tuple[0],
+            to_id=to_type(to_id),
+            date=datetime.fromtimestamp(message_tuple[2]),
+            from_id=message_tuple[3],
+            message=message_tuple[4],
+            reply_to_msg_id=message_tuple[5],
+            fwd_from=None,  # TODO Select from the database
+            post_author=message_tuple[6],
+            media=None  # TODO Select from the database
+        )
 
     @staticmethod
     def rows_are_same(row2, row1, ignore_column):
