@@ -83,7 +83,7 @@ def save_messages(client, dumper, target):
     # OR if the offset is SMALLER than which we should stop at, it
     # means we're AFTER that limit, which means we haven't finished
     # reaching the end. If this is the case, we should stop at 0.
-    if latest.id <= stop_at:
+    if latest and latest.id <= stop_at:
         stop_at = 0
 
     found = 0

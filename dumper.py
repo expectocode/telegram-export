@@ -283,7 +283,7 @@ class Dumper:
             return Dumper.message_from_tuple(self.cur.fetchone())
 
     def _insert(self, into, values):
-        """Helper class to insert the given tuple of values into a table"""
+        """Helper method to insert the given tuple of values into a table"""
         try:
             fmt = ','.join('?' * len(values))
             self.cur.execute("INSERT INTO {} VALUES ({})".format(into, fmt),
