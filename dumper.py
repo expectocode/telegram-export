@@ -10,6 +10,8 @@ from telethon.utils import get_peer_id, resolve_id
 
 logger = logging.getLogger(__name__)
 
+DB_VERSION = 1  # database version
+
 
 class Dumper:
     """Class to interface with the database for exports"""
@@ -22,18 +24,21 @@ class Dumper:
         self.config = config
         self.conn = sqlite3.connect('{}.db'.format(self.config['DBFileName']))
         self.cur = self.conn.cursor()
-        # If this is a new database, populate it
+
         self.cur.execute("SELECT name FROM sqlite_master "
-                         "WHERE type='table' AND name='User';")
-        if not self.cur.fetchall():
-            # Database has no User table, so it's either new or wrecked
-            # We'll treat it as a new database, make the tables
-            # First, drop them all :)
-            tables = list(self.cur.execute(
-                "SELECT name FROM sqlite_master WHERE type is 'table'"))
-            commands = ['DROP TABLE IF EXISTS {}'.format(t[0]) for t in tables]
-            self.cur.executescript(';'.join(commands))
-            # and yes, '' is a valid script
+                         "WHERE type='table' AND name='Version'")
+
+        if self.cur.fetchone():
+            # Tables already exist, check for the version
+            self.cur.execute("SELECT Version FROM Version")
+            version = self.cur.fetchone()[0]
+            if version != DB_VERSION:
+                self._upgrade_database(old=version)
+                self.conn.commit()
+        else:
+            # Tables don't exist, create new ones
+            self.cur.execute("CREATE TABLE Version (Version INTEGER)")
+            self.cur.execute("INSERT INTO Version VALUES (?)", (DB_VERSION,))
 
             self.cur.execute("CREATE TABLE Forward("
                              "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -116,6 +121,15 @@ class Dumper:
                              "ID INT NOT NULL,"
                              "PRIMARY KEY (ContextID)) WITHOUT ROWID")
             self.conn.commit()
+
+    def _upgrade_database(self, old):
+        """
+        This method knows how to migrate from old -> DB_VERSION.
+
+        Currently it performs no operation because this is the
+        first version of the tables, in the future it should alter
+        tables or somehow transfer the data between what canged.
+        """
 
     def dump_message(self, message, forward_id, media_id):
         # TODO handle edits/deletes (fundamental problems with non-long-running exporter)
