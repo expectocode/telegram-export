@@ -126,23 +126,18 @@ class Dumper:
         - ID of Forward in the DB (or None),
         - ID of message Media in the DB (or None)
         Returns: -"""
-        values = (message.id,
-                  message.to_id,
-                  message.date.timestamp(),
-                  message.from_id,
-                  message.message,
-                  message.reply_to_msg_id,
-                  forward_id,
-                  message.post_author,
-                  message.views,
-                  media_id)
-        try:
-            self.cur.execute("INSERT INTO Message VALUES (?,?,?,?,?,?,?,?,?,?)", values)
-            self.conn.commit()
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
+        return self._insert('Message',
+                            (message.id,
+                             message.to_id,
+                             message.date.timestamp(),
+                             message.from_id,
+                             message.message,
+                             message.reply_to_msg_id,
+                             forward_id,
+                             message.post_author,
+                             message.views,
+                             media_id)
+                            )
 
     def dump_message_service(self, message, media_id):
         """Dump a MessageService into the ??? table"""
@@ -172,13 +167,7 @@ class Dumper:
                 and values[1] - last[1] < int(self.config['ForceNoChangeDumpAfter'])):
             return False
 
-        try:
-            self.cur.execute("INSERT INTO User VALUES (?,?,?,?,?,?,?,?,?,?)", values)
-            self.conn.commit()
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
+        return self._insert('User', values)
 
     def dump_channel(self, channel_full, channel, photo_id):
         # TODO: Use invalidation time
@@ -187,19 +176,14 @@ class Dumper:
         Returns -"""
         # Need to get the full object too for 'about' info
         timestamp = round(time.time())
-        values = (channel.id,
-                  timestamp,
-                  channel_full.about,
-                  channel.title,
-                  channel.username,
-                  photo_id)
-        try:
-            self.cur.execute("INSERT INTO Channel VALUES (?,?,?,?,?,?)", values)
-            self.conn.commit()
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
+        return self._insert('Channel',
+                            (channel.id,
+                             timestamp,
+                             channel_full.about,
+                             channel.title,
+                             channel.username,
+                             photo_id)
+                            )
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id):
         # TODO: Use invalidation time
@@ -208,19 +192,14 @@ class Dumper:
         Returns -"""
         # Need to get the full object too for 'about' info
         timestamp = round(time.time())
-        values = (supergroup.id,
-                  timestamp,
-                  supergroup_full.about,
-                  supergroup.title,
-                  supergroup.username,
-                  photo_id)
-        try:
-            self.cur.execute("INSERT INTO Supergroup VALUES (?,?,?,?,?,?)", values)
-            self.conn.commit()
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
+        return self._insert('Supergroup',
+                            (supergroup.id,
+                             timestamp,
+                             supergroup_full.about,
+                             supergroup.title,
+                             supergroup.username,
+                             photo_id)
+                            )
 
     def dump_chat(self, chat, photo_id):
         # TODO: Use invalidation time
@@ -228,18 +207,13 @@ class Dumper:
         Params: Chat to dump, MediaID of the profile photo in the DB
         Returns -"""
         timestamp = round(time.time())
-        values = (chat.id,
-                  timestamp,
-                  chat.title,
-                  chat.migrated_to,
-                  photo_id)
-        try:
-            self.cur.execute("INSERT INTO Chat VALUES (?,?,?,?,?)", values)
-            self.conn.commit()
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
+        return self._insert('Chat',
+                            (chat.id,
+                             timestamp,
+                             chat.title,
+                             chat.migrated_to,
+                             photo_id)
+                            )
 
     def dump_filelocation(self, file_location):
         """Dump a FileLocation into the Media table
@@ -249,40 +223,27 @@ class Dumper:
             warnings.warn("Dumping InputDocumentFileLocation not implemented.")
             return
 
-        values = (None,  # Database will handle this
-                  file_location.local_id,
-                  file_location.volume_id,
-                  # Neither of the following have .dc_id:
-                  #   InputDocumentFileLocation, FileLocationUnavailable
-                  getattr(file_location, 'dc_id', None),
-                  file_location.secret)
-        try:
-            self.cur.execute("INSERT INTO Media VALUES (?,?,?,?,?)", values)
-            self.conn.commit()
-            return self.cur.lastrowid
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
+        return self._insert('Media',
+                            (None,  # Database will handle this
+                             file_location.local_id,
+                             file_location.volume_id,
+                             # Neither of the following have .dc_id:
+                             #   InputDocumentFileLocation, FileLocationUnavailable
+                             getattr(file_location, 'dc_id', None),
+                             file_location.secret)
+                            )
 
     def dump_forward(self, forward):
         """Dump a message forward relationship into the Forward table
         The caller is responsible for ensuring from_id is a unique and correct ID
         Params: MessageFwdHeader Telethon object
         Returns: ID of inserted row"""
-        values = (None,  # Database will handle this
-                  forward.date.timestamp(),
-                  forward.from_id,
-                  forward.channel_post,
-                  forward.post_author)
-        try:
-            self.cur.execute("INSERT INTO Forward VALUES (?,?,?,?,?)", values)
-            self.conn.commit()
-            return self.cur.lastrowid
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
+        return self._insert('Forward',
+                            (None,  # Database will handle this
+                             forward.date.timestamp(),
+                             forward.from_id,
+                             forward.channel_post,
+                             forward.post_author))
 
     def get_message(self, context_id, which):
         """Returns MAX or MIN message available for context_id.
@@ -320,6 +281,19 @@ class Dumper:
                                 ID = ? AND ContextID = ?""",
                              (tuple_[0], context_id))
             return Dumper.message_from_tuple(self.cur.fetchone())
+
+    def _insert(self, into, values):
+        """Helper class to insert the given tuple of values into a table"""
+        try:
+            fmt = ','.join('?' * len(values))
+            self.cur.execute("INSERT INTO {} VALUES ({})".format(into, fmt),
+                             values)
+            self.conn.commit()
+            return self.cur.lastrowid
+        except sqlite3.IntegrityError as error:
+            self.conn.rollback()
+            logger.error("Integrity error: %s", str(error))
+            raise
 
     @staticmethod
     def message_from_tuple(message_tuple):
