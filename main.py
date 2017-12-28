@@ -64,7 +64,7 @@ def save_messages(client, dumper, target):
     )
     print('Starting with', get_display_name(target))
 
-    target_id = get_peer_id(target, add_mark=True)
+    target_id = get_peer_id(target)
     latest = dumper.get_message(target_id, 'MIN')
     if latest:
         # First try resuming
@@ -79,8 +79,8 @@ def save_messages(client, dumper, target):
     while True:
         # TODO How should edits be handled? Always read first two days?
         history = client(request)
-        entities.update({get_peer_id(c, add_mark=True): c for c in history.chats})
-        entities.update({get_peer_id(u, add_mark=True): u for u in history.users})
+        entities.update({get_peer_id(c): c for c in history.chats})
+        entities.update({get_peer_id(u): u for u in history.users})
         if not history.messages:
             if reached_end:
                 break
@@ -106,7 +106,7 @@ def save_messages(client, dumper, target):
                 media_id = None
 
             if isinstance(m, tl.Message):
-                m.to_id = get_peer_id(m.to_id, add_mark=True)
+                m.to_id = get_peer_id(m.to_id)
                 if m.fwd_from:
                     fwd_id = dumper.dump_forward(m.fwd_from)
                 else:
@@ -115,7 +115,7 @@ def save_messages(client, dumper, target):
                 dumper.dump_message(m, forward_id=fwd_id, media_id=media_id)
 
             elif isinstance(m, tl.MessageService):
-                m.to_id = get_peer_id(m.to_id, add_mark=True)
+                m.to_id = get_peer_id(m.to_id)
                 dumper.dump_message_service(m, media_id=media_id)
 
             else:
@@ -167,6 +167,7 @@ def save_messages(client, dumper, target):
 
 
 def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
+    """
     if not force and os.path.isfile(cache_file):
         with open(cache_file, 'rb') as f, BinaryReader(stream=f) as reader:
             entities = []
@@ -176,9 +177,9 @@ def fetch_dialogs(client, cache_file='dialogs.tl', force=False):
                 except BufferError:
                     break  # No more data left to read
             return entities
-
+    """
     with open(cache_file, 'wb') as f:
-        entities = client.get_dialogs(limit=None)[1]
+        entities = [d.entity for d in client.get_dialogs(limit=None)]
         for entity in entities:
             f.write(bytes(entity))
 
