@@ -86,7 +86,7 @@ def save_messages(client, dumper, target):
     if latest and latest.id <= stop_at:
         stop_at = 0
 
-    found = 0
+    found = dumper.get_message_count(target_id)
     entities = {}
     while True:
         # TODO How should edits be handled? Always read first two days?
@@ -120,9 +120,14 @@ def save_messages(client, dumper, target):
 
         total_messages = getattr(history, 'count', len(history.messages))
         if history.messages:
-            found += len(history.messages)
+            # We may reinsert some we already have (so found > total)
+            found = min(found + len(history.messages), total_messages)
             request.offset_id = min(m.id for m in history.messages)
             request.offset_date = min(m.date for m in history.messages)
+
+        print('Downloaded {}/{} ({:.1%})'.format(
+            found, total_messages, found / total_messages
+        ))
 
         # Keep track of the last target ID (smallest one),
         # so we can resume from here in case of interruption.
@@ -144,9 +149,6 @@ def save_messages(client, dumper, target):
             print('Already have the rest of messages, done.')
             break
 
-        print('Downloaded {}/{} ({:.1%})'.format(
-            found, total_messages, found / total_messages
-        ))
         sleep(1)
 
     # Set the last message to 0, as we must start again next time.

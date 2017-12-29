@@ -272,6 +272,13 @@ class Dumper:
                          """.format(which=which), (context_id,))
         return Dumper.message_from_tuple(self.cur.fetchone())
 
+    def get_message_count(self, context_id):
+        """Gets the message count for the given context"""
+        self.cur.execute("SELECT COUNT(*) FROM MESSAGE WHERE ContextID = ?",
+                         (context_id,))
+        tuple_ = self.cur.fetchone()
+        return tuple_[0] if tuple_ else 0
+
     def update_last_dumped_message(self, context_id, msg_id):
         """Updates the last dumped message"""
 
