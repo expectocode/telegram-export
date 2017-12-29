@@ -93,11 +93,6 @@ def save_messages(client, dumper, target):
         history = client(request)
         entities.update({get_peer_id(c): c for c in history.chats})
         entities.update({get_peer_id(u): u for u in history.users})
-        if not history.messages:
-            # TODO Once we reach the end, restart looking for new.
-            # If the first message we return is already in the database,
-            # it means there's nothing new and we have fully finished.
-            break
 
         for m in history.messages:
             file_location = get_file_location(m)
@@ -123,14 +118,22 @@ def save_messages(client, dumper, target):
                 print('Skipping message', type(m).__name__)
                 continue
 
-        found += len(history.messages)
         total_messages = getattr(history, 'count', len(history.messages))
-        request.offset_id = min(m.id for m in history.messages)
-        request.offset_date = min(m.date for m in history.messages)
+        if history.messages:
+            found += len(history.messages)
+            request.offset_id = min(m.id for m in history.messages)
+            request.offset_date = min(m.date for m in history.messages)
 
         # Keep track of the last target ID (smallest one),
         # so we can resume from here in case of interruption.
         dumper.update_last_dumped_message(target_id, request.offset_id)
+
+        if len(history.messages) < request.limit:
+            print('Received less messages than limit, done.')
+            # TODO Once we reach the end, restart looking for new.
+            # If the first message we return is already in the database,
+            # it means there's nothing new and we have fully finished.
+            break
 
         # We dump forward (message ID going towards 0), so as soon
         # as the minimum message ID (now in offset ID) is less than
