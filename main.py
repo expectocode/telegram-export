@@ -130,9 +130,11 @@ def save_messages(client, dumper, target):
 
         if len(history.messages) < request.limit:
             print('Received less messages than limit, done.')
-            # TODO Once we reach the end, restart looking for new.
-            # If the first message we return is already in the database,
-            # it means there's nothing new and we have fully finished.
+            # Receiving less messages than the limit means we have reached
+            # the end, so we need to exit. Next time we'll start from offset
+            # 0 again so we can check for new messages.
+            # TODO should we loop again and check for new messages?
+            # If the conversation is alive, this may never end, unsure.
             break
 
         # We dump forward (message ID going towards 0), so as soon
@@ -146,6 +148,9 @@ def save_messages(client, dumper, target):
             found, total_messages, found / total_messages
         ))
         sleep(1)
+
+    # Set the last message to 0, as we must start again next time.
+    dumper.update_last_dumped_message(target_id, 0)
 
     print('Done. Retrieving full information about entities.')
     # TODO Save their profile picture
