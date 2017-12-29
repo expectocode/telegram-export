@@ -304,11 +304,14 @@ class Dumper:
             return Dumper.message_from_tuple(self.cur.fetchone())
 
     def _insert(self, into, values):
-        """Helper method to insert the given tuple of values into a table"""
+        """
+        Helper method to insert or replace the
+        given tuple of values into the given table.
+        """
         try:
             fmt = ','.join('?' * len(values))
-            self.cur.execute("INSERT INTO {} VALUES ({})".format(into, fmt),
-                             values)
+            self.cur.execute("INSERT OR REPLACE INTO {} VALUES ({})"
+                             .format(into, fmt), values)
             self.conn.commit()
             return self.cur.lastrowid
         except sqlite3.IntegrityError as error:
