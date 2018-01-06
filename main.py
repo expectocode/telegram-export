@@ -216,6 +216,15 @@ def load_config():
     return config
 
 
+def load_entities_from_str(client, string):
+    for who in string.split(','):
+        who = who.strip()
+        if (not who.startswith('+') and who.isdigit()) or who.startswith('-'):
+            yield client.get_input_entity(int(who))
+        else:
+            yield client.get_input_entity(who)
+
+
 if __name__ == '__main__':
     config = load_config()
     dumper = Dumper(config['Dumper'])
@@ -233,8 +242,19 @@ if __name__ == '__main__':
             except SessionPasswordNeededError:
                 client.sign_in(password=getpass())
 
-        for entity in fetch_dialogs(client):
-            save_messages(client, dumper, entity)
+        if 'Whitelist' in dumper.config:
+            # Only whitelist, don't even get the dialogs
+            entities = load_entities_from_str(client, dumper.config['Whitelist'])
+            entities = client.get_entity(entities)  # Into full, to show name
+            for who in entities:
+                save_messages(client, dumper, who)
+        else:
+            # May be blacklist, so save the IDs on who to avoid
+            entities = load_entities_from_str(client, dumper.config['Blacklist'])
+            avoid = set(get_peer_id(x) for x in entities)
+            for entity in fetch_dialogs(client):
+                if get_peer_id(entity) not in avoid:
+                    save_messages(client, dumper, entity)
     except KeyboardInterrupt:
         pass
     finally:

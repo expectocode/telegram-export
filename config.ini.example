@@ -26,3 +26,9 @@ DBFileName = export
 # See explanation for 'Invalidation time'. In minutes.
 ; ForceNoChangeDumpAfter = 7200
 ForceNoChangeDumpAfter = 7200
+
+# Either Whitelist or Blacklist should be present, not both.
+# * Whitelist will backup only the usernames, phones or IDs listed.
+# * Blacklist will backup everything but listed.
+# Phones start with '+' (no quotes), and items separated by comma.
+Whitelist = example, username
