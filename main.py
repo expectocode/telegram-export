@@ -60,7 +60,8 @@ def save_messages(client, dumper, target):
         add_offset=0,
         limit=100,
         max_id=0,
-        min_id=0
+        min_id=0,
+        hash=0
     )
     print('Starting with', get_display_name(target))
 
