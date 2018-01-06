@@ -32,3 +32,9 @@ ForceNoChangeDumpAfter = 7200
 # * Blacklist will backup everything but listed.
 # Phones start with '+' (no quotes), and items separated by comma.
 Whitelist = example, username
+
+# Chunk size in which to retrieve messages. 100 (default, max) if not present.
+; ChunkSize = 100
+
+# Maximum chunks to retrieve from a chat (if too many). 0 (default) means all.
+; MaxChunks = 0

@@ -22,8 +22,16 @@ class Dumper:
         - settings: a dictionary of settings;
         - database_name: filename without file extension"""
         self.config = config
-        self.conn = sqlite3.connect('{}.db'.format(self.config['DBFileName']))
+        if 'DBFileName' in config:
+            self.conn = sqlite3.connect('{}.db'.format(self.config['DBFileName']))
+        else:
+            self.conn = sqlite3.connect(':memory:')
         self.cur = self.conn.cursor()
+
+        self.chunk_size = max(config.get('ChunkSize', 100), 1)
+        self.max_chunks = max(config.get('MaxChunks', 0), 0)
+        self.force_no_change_dump_after = \
+            max(config.get('ForceNoChangeDumpAfter'), -1)
 
         self.cur.execute("SELECT name FROM sqlite_master "
                          "WHERE type='table' AND name='Version'")
@@ -178,7 +186,7 @@ class Dumper:
         self.cur.execute('SELECT * FROM User ORDER BY DateUpdated DESC')
         last = self.cur.fetchone()
         if (self.rows_are_same(values, last, ignore_column=1)
-                and values[1] - last[1] < int(self.config['ForceNoChangeDumpAfter'])):
+                and values[1] - last[1] < int(self.force_no_change_dump_after)):
             return False
 
         return self._insert('User', values)

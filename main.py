@@ -58,7 +58,7 @@ def save_messages(client, dumper, target):
         offset_id=0,
         offset_date=None,
         add_offset=0,
-        limit=100,
+        limit=dumper.chunk_size,
         max_id=0,
         min_id=0,
         hash=0
@@ -66,6 +66,7 @@ def save_messages(client, dumper, target):
     print('Starting with', get_display_name(target))
 
     target_id = get_peer_id(target)
+    chunks_left = dumper.max_chunks
 
     # Resume from the last dumped message. It's important to
     # remember that we go -> 0, although it can be confusing.
@@ -149,6 +150,10 @@ def save_messages(client, dumper, target):
         if request.offset_id <= stop_at:
             print('Already have the rest of messages, done.')
             break
+
+        chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
+        if chunks_left == 0:
+            print('Reached maximum amount of chunks, done.')
 
         sleep(1)
 
