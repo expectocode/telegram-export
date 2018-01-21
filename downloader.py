@@ -158,7 +158,7 @@ def save_messages(client, dumper, target):
 
         eid, etype = resolve_id(mid)
         if etype == tl.PeerUser:
-            if entity.deleted:
+            if entity.deleted or entity.min:
                 continue
                 # Otherwise, the empty first name causes an IntegrityError
             full_user = client(rpc.users.GetFullUserRequest(entity))
@@ -169,6 +169,8 @@ def save_messages(client, dumper, target):
             dumper.dump_chat(entity, photo_id=photo_id)
 
         elif etype == tl.PeerChannel:
+            if hasattr(entity, 'left') and entity.left:
+                continue
             full_channel = client(rpc.channels.GetFullChannelRequest(entity))
             sleep(1)
             if entity.megagroup:
