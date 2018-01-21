@@ -217,7 +217,7 @@ class Dumper:
         return self._insert('Supergroup',
                             (supergroup.id,
                              timestamp,
-                             supergroup_full.about,
+                             supergroup_full.about if hasattr(supergroup_full, 'about') else '',
                              supergroup.title,
                              supergroup.username,
                              photo_id)
