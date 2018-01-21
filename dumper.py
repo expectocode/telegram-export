@@ -31,7 +31,7 @@ class Dumper:
         self.chunk_size = max(config.get('ChunkSize', 100), 1)
         self.max_chunks = max(config.get('MaxChunks', 0), 0)
         self.force_no_change_dump_after = \
-            max(config.get('ForceNoChangeDumpAfter'), -1)
+            max(int(config.get('ForceNoChangeDumpAfter')), -1)
 
         self.cur.execute("SELECT name FROM sqlite_master "
                          "WHERE type='table' AND name='Version'")
