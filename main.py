@@ -32,6 +32,7 @@ if __name__ == '__main__':
     config = load_config()
     dumper = Dumper(config['Dumper'])
     config = config['TelegramAPI']
+    cache_file = config['SessionName'] + '.tl'
 
     client = TelegramClient(
         config['SessionName'], config['ApiId'], config['ApiHash']
@@ -55,7 +56,7 @@ if __name__ == '__main__':
             # May be blacklist, so save the IDs on who to avoid
             entities = downloader.load_entities_from_str(client, dumper.config['Blacklist'])
             avoid = set(utils.get_peer_id(x) for x in entities)
-            for entity in downloader.fetch_dialogs(client):
+            for entity in downloader.fetch_dialogs(client, cache_file=cache_file):
                 if utils.get_peer_id(entity) not in avoid:
                     downloader.save_messages(client, dumper, entity)
     except KeyboardInterrupt:
