@@ -31,7 +31,7 @@ class Dumper:
         self.chunk_size = max(config.get('ChunkSize', 100), 1)
         self.max_chunks = max(config.get('MaxChunks', 0), 0)
         self.force_no_change_dump_after = \
-            max(config.get('ForceNoChangeDumpAfter'), -1)
+            max(config.get('ForceNoChangeDumpAfter', 0), -1)
 
         self.cur.execute("SELECT name FROM sqlite_master "
                          "WHERE type='table' AND name='Version'")
@@ -279,6 +279,15 @@ class Dumper:
                             )
                          """.format(which=which), (context_id,))
         return Dumper.message_from_tuple(self.cur.fetchone())
+
+    def iter_messages(self, context_id):
+        """Iterates over the messages on context_id, in ascending order"""
+        self.cur.execute("""SELECT * FROM Message WHERE ContextID = ? ORDER BY ID ASC""",
+                         (context_id,))
+        msg = self.cur.fetchone()
+        while msg:
+            yield Dumper.message_from_tuple(msg)
+            msg = self.cur.fetchone()
 
     def get_message_count(self, context_id):
         """Gets the message count for the given context"""
