@@ -40,6 +40,7 @@ def get_file_location(obj):
 
 
 def save_messages(client, dumper, target):
+    target = client.get_input_entity(target)
     request = rpc.messages.GetHistoryRequest(
         peer=target,
         offset_id=0,
@@ -50,7 +51,7 @@ def save_messages(client, dumper, target):
         min_id=0,
         hash=0
     )
-    print('Starting with', get_display_name(target))
+    print('Starting with', get_display_name(client.get_entity(target)))
 
     target_id = get_peer_id(target)
     chunks_left = dumper.max_chunks
