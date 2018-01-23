@@ -98,7 +98,7 @@ def save_messages(client, dumper, target):
                 else:
                     fwd_id = None
 
-                dumper.dump_message(m, forward_id=fwd_id, media_id=media_id)
+                dumper.dump_message(m, target_id, forward_id=fwd_id, media_id=media_id)
 
             elif isinstance(m, tl.MessageService):
                 m.to_id = get_peer_id(m.to_id)

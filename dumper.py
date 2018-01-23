@@ -139,18 +139,19 @@ class Dumper:
         tables or somehow transfer the data between what canged.
         """
 
-    def dump_message(self, message, forward_id, media_id):
+    def dump_message(self, message, context_id, forward_id, media_id):
         # TODO handle edits/deletes (fundamental problems with non-long-running exporter)
         """Dump a Message into the Message table
         The caller is responsible for ensuring to_id is a unique and correct contextID
         Params:
         - Message to dump,
+        - ID of the chat dumping,
         - ID of Forward in the DB (or None),
         - ID of message Media in the DB (or None)
         Returns: -"""
         return self._insert('Message',
                             (message.id,
-                             message.to_id,
+                             context_id,
                              message.date.timestamp(),
                              message.from_id,
                              message.message,
