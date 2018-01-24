@@ -81,11 +81,13 @@ class TestDumpAll(unittest.TestCase):
         slave = TelegramClient(None, config['ApiId'], config['ApiHash'])
         slave_name = gen_username(10)
         login_client(slave, slave_name)
+        slave_id = utils.get_peer_id(owner.get_input_entity(slave_name))
 
-        dumper = Dumper({'DBFileName': 'UNIT-TEST'})
+        dumper = Dumper({})
         dumper.chunk_size = 10
         # (number of messages to handle, send (true) or dump (false))
         actions = (
+            # True means out (send), False means in (dump)
             # No if we don't have them, yes if we do (upper = last action)
             (23, True),   # {NO:23}
             (20, False),  # {YES:20}{no:3}
@@ -99,6 +101,21 @@ class TestDumpAll(unittest.TestCase):
                           # {yes:52}
         )
 
+        # Keep a array holding either None, False, True so we can visually
+        # represent which wasn't sent, which was, and which we have dumped.
+        visual = [None] * sum(n for n, send in actions if send)
+        ok_visuals = [
+            '_____________________________00000000000000000000000',
+            '_____________________________11111111111111111111000',  # Starts
+            '_______________0000000000000011111111111111111111000',
+            '_______________0000000000000011111111111111111111111',  # Resumes
+            '_____________000000000000000011111111111111111111111',
+            '_____________111111111100000011111111111111111111111',  # Starts
+            '0000000000000111111111100000011111111111111111111111',
+            '0000000000000111111111111111111111111111111111111111',  # Resumes
+            '1111111111111111111111111111111111111111111111111111'   # Starts
+        ]
+
         print(owner_name, 'cleared the chat with', slave_name)
         owner(DeleteHistoryRequest(slave_name, 0))
 
@@ -111,6 +128,7 @@ class TestDumpAll(unittest.TestCase):
                         slave.send_message(owner_name, str(which))
                     else:
                         owner.send_message(slave_name, str(which))
+                    visual[-which] = False
                     which += 1
                 time.sleep(1)
             else:
@@ -118,6 +136,12 @@ class TestDumpAll(unittest.TestCase):
                 chunks = (amount + dumper.chunk_size - 1) // dumper.chunk_size
                 dumper.max_chunks = chunks
                 downloader.save_messages(owner, dumper, slave_name)
+                for msg in dumper.iter_messages(slave_id):
+                    visual[-int(msg.message)] = True
+
+            curr = ''.join('_' if x is None else str(int(x)) for x in visual)
+            print('Current visual:', curr)
+            assert curr == ok_visuals.pop(0)
 
         print(owner_name, 'full history with', slave_name)
         messages = owner.get_message_history(slave_name, limit=None)
@@ -125,17 +149,17 @@ class TestDumpAll(unittest.TestCase):
             print('ID:', msg.id, '; Message:', msg.message)
 
         print('Dumped history')
-        dumped = list(dumper.iter_messages(utils.get_peer_id(
-            owner.get_input_entity(slave_name)
-        )))
-        for msg in reversed(dumped):
+        dumped = list(dumper.iter_messages(slave_id))
+        for msg in dumped:
             print('ID:', msg.id, '; Message:', msg.message)
 
         print('Asserting dumped history matches...')
         assert len(messages) == len(dumped), 'Not all messages were dumped'
-        assert all(a.id == b.id and a.message == b.message for a, b in zip(messages, dumped)), 'Dumped messages do not match'
-        print('All good! Test passed!')
+        assert all(a.id == b.id and a.message == b.message
+                   for a, b in zip(reversed(messages), dumped)),\
+            'Dumped messages do not match'
 
+        print('All good! Test passed!')
         owner.disconnect()
         slave.disconnect()
 
