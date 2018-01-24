@@ -1,10 +1,13 @@
 #!/bin/env python3
+import logging
 import os
 from time import sleep
 
 from telethon.extensions import BinaryReader
 from telethon.tl import types as tl, functions as rpc
-from telethon.utils import get_peer_id, resolve_id, get_display_name
+from telethon.utils import get_peer_id, resolve_id
+
+__log__ = logging.getLogger(__name__)
 
 
 def get_file_location(obj):
@@ -51,7 +54,7 @@ def save_messages(client, dumper, target):
         min_id=0,
         hash=0
     )
-    print('Starting with', get_display_name(client.get_entity(target)))
+    __log__.info('Starting dump with %s', target)
 
     target_id = get_peer_id(target)
     chunks_left = dumper.max_chunks
@@ -60,7 +63,7 @@ def save_messages(client, dumper, target):
     # remember that we go -> 0, although it can be confusing.
     latest = dumper.get_last_dumped_message(target_id)
     if latest:
-        print('Resuming at', latest.date, '(', latest.id, ')')
+        __log__.info('Resuming at %s (%s)', latest.date, latest.id)
         # Offset is exclusive, which makes it easier
         request.offset_id = latest.id
         request.offset_date = latest.date
@@ -79,27 +82,18 @@ def save_messages(client, dumper, target):
         entities.update({get_peer_id(u): u for u in history.users})
 
         for m in history.messages:
-            file_location = get_file_location(m)
-            if file_location:
-                media_id = dumper.dump_filelocation(file_location)
-            else:
-                media_id = None
+            media_id = dumper.dump_filelocation(get_file_location(m))
 
             if isinstance(m, tl.Message):
-                m.to_id = get_peer_id(m.to_id)
-                if m.fwd_from:
-                    fwd_id = dumper.dump_forward(m.fwd_from)
-                else:
-                    fwd_id = None
-
-                dumper.dump_message(m, target_id, forward_id=fwd_id, media_id=media_id)
+                fwd_id = dumper.dump_forward(m.fwd_from)
+                dumper.dump_message(m, target_id,
+                                    forward_id=fwd_id, media_id=media_id)
 
             elif isinstance(m, tl.MessageService):
-                m.to_id = get_peer_id(m.to_id)
                 dumper.dump_message_service(m, media_id=media_id)
 
             else:
-                print('Skipping message', type(m).__name__)
+                __log__.warning('Skipping message %s', m)
                 continue
 
         total_messages = getattr(history, 'count', len(history.messages))
@@ -109,17 +103,15 @@ def save_messages(client, dumper, target):
             request.offset_id = min(m.id for m in history.messages)
             request.offset_date = min(m.date for m in history.messages)
 
-        print('Downloaded {}/{} ({:.1%})'.format(
+        __log__.debug('Downloaded {}/{} ({:.1%})'.format(
             found, total_messages, found / total_messages
         ))
 
         if len(history.messages) < request.limit:
-            print('Received less messages than limit, done.')
+            __log__.info('Received less messages than limit, done.')
             # Receiving less messages than the limit means we have reached
             # the end, so we need to exit. Next time we'll start from offset
             # 0 again so we can check for new messages.
-            # TODO should we loop again and check for new messages?
-            # If the conversation is alive, this may never end, unsure.
             dumper.update_last_dumped_message(target_id, 0)
             break
 
@@ -127,7 +119,7 @@ def save_messages(client, dumper, target):
         # as the minimum message ID (now in offset ID) is less than
         # the highest ID ("closest" bound we need to reach), stop.
         if request.offset_id <= stop_at:
-            print('Already have the rest of messages, done.')
+            __log__.info('Already have the rest of messages, done.')
             dumper.update_last_dumped_message(target_id, 0)
             break
 
@@ -137,12 +129,12 @@ def save_messages(client, dumper, target):
 
         chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
         if chunks_left == 0:
-            print('Reached maximum amount of chunks, done.')
+            __log__.info('Reached maximum amount of chunks, done.')
             break
 
         sleep(1)
 
-    print('Done. Retrieving full information about entities.')
+    __log__.info('Done. Retrieving full information about entities.')
     # TODO Save their profile picture
     for mid, entity in entities.items():
         file_location = get_file_location(entity)
@@ -169,8 +161,10 @@ def save_messages(client, dumper, target):
             if entity.megagroup:
                 dumper.dump_supergroup(full_channel, entity, photo_id=photo_id)
             else:
-                dumper.dump_channel(full_channel.full_chat, entity, photo_id=photo_id)
-    print('Done!\n')
+                dumper.dump_channel(full_channel.full_chat, entity,
+                                    photo_id=photo_id)
+
+    __log__.info('Dump with %s finished', target)
 
 
 def fetch_dialogs(client, cache_file='dialogs.tl', force=False):

@@ -242,6 +242,9 @@ class Dumper:
         """Dump a FileLocation into the Media table
         Params: FileLocation Telethon object
         Returns: ID of inserted row"""
+        if not file_location:
+            return None
+
         if isinstance(file_location, tl.InputDocumentFileLocation):
             warnings.warn("Dumping InputDocumentFileLocation not implemented.")
             return
@@ -261,6 +264,9 @@ class Dumper:
         The caller is responsible for ensuring from_id is a unique and correct ID
         Params: MessageFwdHeader Telethon object
         Returns: ID of inserted row"""
+        if not forward:
+            return None
+
         return self._insert('Forward',
                             (None,  # Database will handle this
                              forward.date.timestamp(),

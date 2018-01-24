@@ -17,7 +17,7 @@ logger.setLevel(logging.DEBUG)
 
 def load_config():
     # Load from file
-    defaults = {'ForceNoChangeDumpAfter': 7200,'DBFileName': 'export'}
+    defaults = {'ForceNoChangeDumpAfter': 7200, 'DBFileName': 'export'}
     config = configparser.ConfigParser(defaults)
     config.read('config.ini')
 
@@ -28,7 +28,7 @@ def load_config():
     return config
 
 
-if __name__ == '__main__':
+def main():
     config = load_config()
     dumper = Dumper(config['Dumper'])
     config = config['TelegramAPI']
@@ -47,13 +47,16 @@ if __name__ == '__main__':
 
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
-            entities = downloader.load_entities_from_str(client, dumper.config['Whitelist'])
-            entities = client.get_entity(entities)  # Into full, to show name
+            entities = downloader.load_entities_from_str(
+                client, dumper.config['Whitelist']
+            )
             for who in entities:
                 downloader.save_messages(client, dumper, who)
         else:
             # May be blacklist, so save the IDs on who to avoid
-            entities = downloader.load_entities_from_str(client, dumper.config['Blacklist'])
+            entities = downloader.load_entities_from_str(
+                client, dumper.config['Blacklist']
+            )
             avoid = set(utils.get_peer_id(x) for x in entities)
             for entity in downloader.fetch_dialogs(client):
                 if utils.get_peer_id(entity) not in avoid:
@@ -61,5 +64,8 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     finally:
-        print('Done, disconnecting...')
         client.disconnect()
+
+
+if __name__ == '__main__':
+    main()
