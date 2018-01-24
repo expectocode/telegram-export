@@ -164,6 +164,9 @@ class Dumper:
         - ID of Forward in the DB (or None),
         - ID of message Media in the DB (or None)
         Returns: -"""
+        if not message.message and message.media:
+            message.message = getattr(message.media, 'caption', '')
+
         return self._insert('Message',
                             (message.id,
                              context_id,
