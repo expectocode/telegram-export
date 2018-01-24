@@ -299,7 +299,7 @@ class Dumper:
                                 WHERE ContextID = ?
                             )
                          """.format(which=which), (context_id,))
-        return Dumper.message_from_tuple(self.cur.fetchone())
+        return self.message_from_tuple(self.cur.fetchone())
 
     def iter_messages(self, context_id):
         """Iterates over the messages on context_id, in ascending order"""
@@ -362,11 +362,11 @@ class Dumper:
             return
 
         self.cur.execute("SELECT * FROM Forward WHERE ID = ?",
-                         (message_tuple[6]))
+                         (message_tuple[6],))
         fwd = Dumper.fwd_from_tuple(self.cur.fetchone())
 
         self.cur.execute("SELECT * FROM Media WHERE ID = ?",
-                         (message_tuple[9]))
+                         (message_tuple[9],))
         loc = Dumper.location_from_tuple(self.cur.fetchone())
         if loc == tl.InputFileLocation:
             media = tl.MessageMediaPhoto(
