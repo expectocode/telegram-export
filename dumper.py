@@ -7,10 +7,16 @@ import warnings
 from datetime import datetime
 from telethon.tl import types as tl
 from telethon.utils import get_peer_id, resolve_id
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
 DB_VERSION = 1  # database version
+
+
+class InputFileType(Enum):
+    NORMAL = 0
+    DOCUMENT = 1
 
 
 class Dumper:
@@ -55,12 +61,21 @@ class Dumper:
                              "ChannelPost INT,"
                              "PostAuthor TEXT)")
 
+            # For InputFileLocation:
+            #   local_id -> LocalID
+            #   volume_id -> VolumeID
+            #   secret -> Secret
+            #
+            # For InputDocumentFileLocation:
+            #   id -> LocalID
+            #   access_hash -> Secret
+            #   version -> VolumeID
             self.cur.execute("CREATE TABLE Media("
                              "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                              "LocalID INT NOT NULL,"
                              "VolumeID INT NOT NULL,"
-                             "DCID INT NOT NULL,"
-                             "Secret INT NOT NULL)")
+                             "Secret INT NOT NULL,"
+                             "Type INT NOT NULL)")
 
             self.cur.execute("CREATE TABLE User("
                              "ID INT NOT NULL,"
@@ -242,22 +257,18 @@ class Dumper:
         """Dump a FileLocation into the Media table
         Params: FileLocation Telethon object
         Returns: ID of inserted row"""
-        if not file_location:
-            return None
+        fl = file_location
+        if isinstance(fl, tl.InputFileLocation):
+            tuple_ = (None, fl.local_id, fl.volume_id, fl.secret,
+                      InputFileType.NORMAL.value)
 
-        if isinstance(file_location, tl.InputDocumentFileLocation):
-            warnings.warn("Dumping InputDocumentFileLocation not implemented.")
+        elif isinstance(fl, tl.InputDocumentFileLocation):
+            tuple_ = (None, fl.id, fl.version, fl.access_hash,
+                      InputFileType.DOCUMENT.value)
+        else:
             return
 
-        return self._insert('Media',
-                            (None,  # Database will handle this
-                             file_location.local_id,
-                             file_location.volume_id,
-                             # Neither of the following have .dc_id:
-                             #   InputDocumentFileLocation, FileLocationUnavailable
-                             getattr(file_location, 'dc_id', None),
-                             file_location.secret)
-                            )
+        return self._insert('Media', tuple_)
 
     def dump_forward(self, forward):
         """Dump a message forward relationship into the Forward table
@@ -343,11 +354,52 @@ class Dumper:
             logger.error("Integrity error: %s", str(error))
             raise
 
-    @staticmethod
-    def message_from_tuple(message_tuple):
+    def message_from_tuple(self, message_tuple):
         if not message_tuple:
             return
 
+        self.cur.execute("SELECT * FROM Forward WHERE ID = ?",
+                         (message_tuple[6]))
+        fwd = Dumper.fwd_from_tuple(self.cur.fetchone())
+
+        self.cur.execute("SELECT * FROM Media WHERE ID = ?",
+                         (message_tuple[9]))
+        loc = Dumper.location_from_tuple(self.cur.fetchone())
+        if loc == tl.InputFileLocation:
+            media = tl.MessageMediaPhoto(
+                caption=message_tuple[4],
+                photo=tl.Photo(
+                    id=0,
+                    access_hash=0,
+                    date=None,
+                    sizes=[tl.PhotoSize(
+                        type='',
+                        location=loc,
+                        w=0,
+                        h=0,
+                        size=0
+                    )]
+                )
+            )
+        elif loc == tl.InputDocumentFileLocation:
+            media = tl.MessageMediaDocument(
+                caption=message_tuple[4],
+                document=tl.Document(
+                    id=loc.id,
+                    access_hash=loc.access_hash,
+                    version=loc.version,
+                    dc_id=0,
+                    mime_type='',
+                    date=None,
+                    size=0,
+                    thumb=None,
+                    attributes=[]
+                )
+            )
+        else:
+            media = None
+
+        # ContextID often matches with to_id, except for incoming PMs
         to_id, to_type = resolve_id(message_tuple[1])
         return tl.Message(
             id=message_tuple[0],
@@ -356,10 +408,41 @@ class Dumper:
             from_id=message_tuple[3],
             message=message_tuple[4],
             reply_to_msg_id=message_tuple[5],
-            fwd_from=None,  # TODO Select from the database
-            post_author=message_tuple[6],
-            media=None  # TODO Select from the database
+            fwd_from=fwd,
+            post_author=message_tuple[7],
+            views=message_tuple[8],
+            media=media  # Cannot exactly reconstruct it
         )
+
+    @staticmethod
+    def fwd_from_tuple(fwd_tuple):
+        if not fwd_tuple:
+            return
+
+        return tl.MessageFwdHeader(
+            date=datetime.fromtimestamp(fwd_tuple[1]),
+            from_id=fwd_tuple[2],
+            channel_post=fwd_tuple[3],
+            post_author=fwd_tuple[4]
+        )
+
+    @staticmethod
+    def location_from_tuple(loc_tuple):
+        if not loc_tuple:
+            return
+
+        if loc_tuple[4] == InputFileType.NORMAL.value:
+            return tl.InputFileLocation(
+                local_id=loc_tuple[1],
+                volume_id=loc_tuple[2],
+                secret=loc_tuple[3]
+            )
+        elif loc_tuple[4] == InputFileType.DOCUMENT.value:
+            return tl.InputDocumentFileLocation(
+                id=loc_tuple[1],
+                version=loc_tuple[2],
+                access_hash=loc_tuple[3]
+            )
 
     @staticmethod
     def rows_are_same(row2, row1, ignore_column):
