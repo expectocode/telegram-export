@@ -374,27 +374,3 @@ class Dumper:
             if (i != ignore_column) and x != row2[i]:
                 return False
         return True
-
-
-def test():
-    """Enter an example user to test dump_user"""
-    # TODO: real tests
-    settings = {'ForceNoChangeDumpAfter': 432000, 'DBFileName': 'export'}
-    dumper = Dumper(settings)
-    from telethon.tl.types import User, UserFull
-    usr = User(1,
-               first_name='first',
-               last_name=None,
-               username='username',
-               phone=None,
-               bot=False)
-    usrfull = UserFull(usr,
-                       None,
-                       None,
-                       2,
-                       about='test')
-    dumper.dump_user(usrfull, 1)
-
-
-if __name__ == '__main__':
-    test()

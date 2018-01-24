@@ -3,17 +3,13 @@ import random
 import string
 import time
 import unittest
+from datetime import datetime, timedelta
 
 from telethon import TelegramClient, utils
 from telethon.errors import (
     PhoneNumberOccupiedError, SessionPasswordNeededError
 )
-from telethon.tl.functions.account import (
-    UpdateUsernameRequest, DeleteAccountRequest
-)
-from telethon.tl.functions.messages import (
-    DeleteHistoryRequest
-)
+from telethon.tl import functions, types
 
 import downloader
 from dumper import Dumper
@@ -48,14 +44,14 @@ def login_client(client, username):
                 break
             except SessionPasswordNeededError:
                 print('Occupied', phone, 'had password! Deleting!')
-                client(DeleteAccountRequest(''))
+                client(functions.account.DeleteAccountRequest(''))
 
     print('Changing', phone, 'username to', username)
-    client(UpdateUsernameRequest(username))
+    client(functions.account.UpdateUsernameRequest(username))
 
 
 class TestDumpAll(unittest.TestCase):
-    def test_dump(self):
+    def test_interrupted_dump(self):
         """
         This method will ensure that all messages are retrieved even
         on weird conditions. The process will go as follows to cover
@@ -117,7 +113,7 @@ class TestDumpAll(unittest.TestCase):
         ]
 
         print(owner_name, 'cleared the chat with', slave_name)
-        owner(DeleteHistoryRequest(slave_name, 0))
+        owner(functions.messages.DeleteHistoryRequest(slave_name, 0))
 
         which = 1
         for amount, out in actions:
@@ -162,6 +158,113 @@ class TestDumpAll(unittest.TestCase):
         print('All good! Test passed!')
         owner.disconnect()
         slave.disconnect()
+
+    def test_dump_methods(self):
+        dumper = Dumper({})
+        message = types.Message(
+            id=777,
+            to_id=types.PeerUser(123),
+            date=datetime.now(),
+            message='Hello',
+            out=True,
+            via_bot_id=1000,
+            fwd_from=types.MessageFwdHeader(
+                date=datetime.now() - timedelta(days=1),
+                from_id=321
+            )
+        )
+        fwd_id = dumper.dump_forward(message.fwd_from)
+        dumper.dump_message(message, 123, forward_id=fwd_id, media_id=None)
+
+        message = types.Message(
+            id=778,
+            to_id=types.PeerUser(321),
+            date=datetime.now(),
+            message='Hello',
+            out=False,
+            via_bot_id=1000,
+            media=types.MessageMediaPhoto(
+                caption='Hi',
+                ttl_seconds=40,
+                photo=types.Photo(
+                    id=2357,
+                    access_hash=-123456789,
+                    date=datetime.now(),
+                    sizes=[
+                        types.PhotoSize(
+                            type='X',
+                            w=100,
+                            h=100,
+                            size=100 * 100,
+                            location=types.FileLocation(
+                                dc_id=2,
+                                volume_id=5,
+                                local_id=7532,
+                                secret=987654321
+                            )
+                        )
+                    ]
+                )
+            )
+        )
+        loc = dumper.dump_filelocation(downloader.get_file_location(message))
+        dumper.dump_message(message, 123, forward_id=None, media_id=loc)
+        dumper.dump_message_service(media_id=loc, message=types.MessageService(
+            id=779,
+            to_id=123,
+            date=datetime.now(),
+            action=types.MessageActionScreenshotTaken()
+        ))
+
+        me = types.User(
+            id=123,
+            is_self=True,
+            access_hash=13515,
+            first_name='Me',
+            username='justme',
+            phone='1234567'
+        )
+        dumper.dump_user(photo_id=None, user_full=types.UserFull(
+            user=me,
+            link=types.contacts.Link(
+                my_link=types.ContactLinkContact(),
+                foreign_link=types.ContactLinkContact(),
+                user=me
+            ),
+            notify_settings=types.PeerNotifySettings(0, 'beep'),
+            common_chats_count=3
+        ))
+        dumper.dump_chat(photo_id=None, chat=types.Chat(
+            id=7264,
+            title='Chat',
+            photo=types.ChatPhotoEmpty(),
+            participants_count=5,
+            date=datetime.now() - timedelta(days=10),
+            version=1
+        ))
+
+        channel = types.Channel(
+            id=8247,
+            title='Channel',
+            photo=types.ChatPhotoEmpty(),
+            username='justchannel',
+            participants_count=17,
+            date=datetime.now() - timedelta(days=5),
+            version=7
+        )
+        channel_full = types.ChannelFull(
+            id=8247,
+            about='Just a Channel',
+            read_inbox_max_id=1051,
+            read_outbox_max_id=8744,
+            unread_count=1568,
+            chat_photo=types.PhotoEmpty(id=176489),
+            notify_settings=types.PeerNotifySettingsEmpty(),
+            exported_invite=types.ChatInviteEmpty(),
+            bot_info=[]
+        )
+        dumper.dump_supergroup(channel_full, channel, photo_id=None)
+        dumper.dump_channel(channel_full, channel, photo_id=None)
 
 
 if __name__ == '__main__':
