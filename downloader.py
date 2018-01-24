@@ -70,12 +70,6 @@ def save_messages(client, dumper, target):
     # we don't receive any more messages.
     stop_at = getattr(dumper.get_message(target_id, 'MAX'), 'id', 0)
 
-    # OR if the offset is SMALLER than which we should stop at, it
-    # means we're AFTER that limit, which means we haven't finished
-    # reaching the end. If this is the case, we should stop at 0.
-    if latest and latest.id <= stop_at:
-        stop_at = 0
-
     found = dumper.get_message_count(target_id)
     entities = {}
     while True:
