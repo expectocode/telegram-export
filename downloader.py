@@ -119,10 +119,6 @@ def save_messages(client, dumper, target):
             found, total_messages, found / total_messages
         ))
 
-        # Keep track of the last target ID (smallest one),
-        # so we can resume from here in case of interruption.
-        dumper.update_last_dumped_message(target_id, request.offset_id)
-
         if len(history.messages) < request.limit:
             print('Received less messages than limit, done.')
             # Receiving less messages than the limit means we have reached
@@ -130,6 +126,7 @@ def save_messages(client, dumper, target):
             # 0 again so we can check for new messages.
             # TODO should we loop again and check for new messages?
             # If the conversation is alive, this may never end, unsure.
+            dumper.update_last_dumped_message(target_id, 0)
             break
 
         # We dump forward (message ID going towards 0), so as soon
@@ -137,16 +134,19 @@ def save_messages(client, dumper, target):
         # the highest ID ("closest" bound we need to reach), stop.
         if request.offset_id <= stop_at:
             print('Already have the rest of messages, done.')
+            dumper.update_last_dumped_message(target_id, 0)
             break
+
+        # Keep track of the last target ID (smallest one),
+        # so we can resume from here in case of interruption.
+        dumper.update_last_dumped_message(target_id, request.offset_id)
 
         chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
         if chunks_left == 0:
             print('Reached maximum amount of chunks, done.')
+            break
 
         sleep(1)
-
-    # Set the last message to 0, as we must start again next time.
-    dumper.update_last_dumped_message(target_id, 0)
 
     print('Done. Retrieving full information about entities.')
     # TODO Save their profile picture
