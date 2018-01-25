@@ -10,38 +10,6 @@ from telethon.utils import get_peer_id, resolve_id
 __log__ = logging.getLogger(__name__)
 
 
-def get_file_location(obj):
-    if isinstance(obj, tl.Message):
-        if obj.media:
-            if isinstance(obj.media, tl.MessageMediaDocument):
-                return get_file_location(obj.media.document)
-            elif isinstance(obj.media, tl.MessageMediaPhoto):
-                return get_file_location(obj.media.photo)
-
-    elif isinstance(obj, tl.MessageService):
-        if isinstance(obj.action, tl.MessageActionChatEditPhoto):
-            return get_file_location(obj.action.photo)
-
-    elif isinstance(obj, (tl.User, tl.Chat, tl.Channel)):
-        return get_file_location(obj.photo)
-
-    elif isinstance(obj, tl.Photo):  # PhotoEmpty are ignored
-        # FileLocation or FileLocationUnavailable
-        return obj.sizes[-1].location
-
-    elif isinstance(obj, (tl.UserProfilePhoto, tl.ChatPhoto)):
-        # FileLocation or FileLocationUnavailable
-        # If the latter we could test whether obj.photo_small is more worthy
-        return obj.photo_big
-
-    elif isinstance(obj, tl.Document):  # DocumentEmpty are ignored
-        return tl.InputDocumentFileLocation(
-            id=obj.id,
-            access_hash=obj.access_hash,
-            version=obj.version
-        )
-
-
 def save_messages(client, dumper, target):
     target = client.get_input_entity(target)
     request = rpc.messages.GetHistoryRequest(
@@ -82,15 +50,14 @@ def save_messages(client, dumper, target):
         entities.update({get_peer_id(u): u for u in history.users})
 
         for m in history.messages:
-            media_id = dumper.dump_filelocation(get_file_location(m))
-
             if isinstance(m, tl.Message):
                 fwd_id = dumper.dump_forward(m.fwd_from)
+                media_id = dumper.dump_media(m.media)
                 dumper.dump_message(m, target_id,
                                     forward_id=fwd_id, media_id=media_id)
 
             elif isinstance(m, tl.MessageService):
-                dumper.dump_message_service(m, media_id=media_id)
+                dumper.dump_message_service(m, media_id=None)
 
             else:
                 __log__.warning('Skipping message %s', m)
@@ -137,12 +104,6 @@ def save_messages(client, dumper, target):
     __log__.info('Done. Retrieving full information about entities.')
     # TODO Save their profile picture
     for mid, entity in entities.items():
-        file_location = get_file_location(entity)
-        if file_location:
-            photo_id = dumper.dump_filelocation(file_location)
-        else:
-            photo_id = None
-
         eid, etype = resolve_id(mid)
         if etype == tl.PeerUser:
             if entity.deleted:
@@ -150,14 +111,20 @@ def save_messages(client, dumper, target):
                 # Otherwise, the empty first name causes an IntegrityError
             full_user = client(rpc.users.GetFullUserRequest(entity))
             sleep(1)
+            photo_id = dumper.dump_media(full_user.profile_photo)
             dumper.dump_user(full_user, photo_id=photo_id)
 
         elif etype == tl.PeerChat:
+            if isinstance(entity, tl.Chat):
+                photo_id = dumper.dump_media(entity.photo)
+            else:
+                photo_id = None
             dumper.dump_chat(entity, photo_id=photo_id)
 
         elif etype == tl.PeerChannel:
             full_channel = client(rpc.channels.GetFullChannelRequest(entity))
             sleep(1)
+            photo_id = dumper.dump_media(full_channel.chat_photo)
             if entity.megagroup:
                 dumper.dump_supergroup(full_channel, entity, photo_id=photo_id)
             else:

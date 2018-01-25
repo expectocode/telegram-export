@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """A module for dumping export data into the database"""
+import logging
 import sqlite3
 import time
-import logging
-import warnings
+from base64 import b64encode
 from datetime import datetime
-from telethon.tl import types as tl
-from telethon.utils import get_peer_id, resolve_id
 from enum import Enum
+
+from telethon.tl import types as tl
+from telethon.utils import resolve_id
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,21 @@ DB_VERSION = 1  # database version
 class InputFileType(Enum):
     NORMAL = 0
     DOCUMENT = 1
+
+
+def sanitize_dict(dictionary):
+    """
+    Sanitizes a dictionary, encoding all bytes as
+    Base64 so that it can be serialized as JSON.
+
+    Assumes that there are no containers with bytes inside,
+    and that the dictionary doesn't contain self-references.
+    """
+    for k, v in dictionary.items():
+        if isinstance(v, bytes):
+            dictionary[k] = b64encode(v)
+        elif isinstance(v, dict):
+            sanitize_dict(v)
 
 
 class Dumper:
@@ -72,10 +88,19 @@ class Dumper:
             #   version -> VolumeID
             self.cur.execute("CREATE TABLE Media("
                              "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
-                             "LocalID INT NOT NULL,"
-                             "VolumeID INT NOT NULL,"
-                             "Secret INT NOT NULL,"
-                             "Type INT NOT NULL)")
+                             # Basic useful information, if available
+                             "Name TEXT,"
+                             "MimeType TEXT,"
+                             "Size INT,"
+                             "ThumbnailID INT,"
+                             "Type TEXT,"
+                             # Fields required to download the file
+                             "LocalID INT,"
+                             "VolumeID INT,"
+                             "Secret INT,"
+                             # Whatever else as JSON here
+                             "Extra TEXT,"
+                             "FOREIGN KEY (ThumbnailID) REFERENCES Media(ID))")
 
             self.cur.execute("CREATE TABLE User("
                              "ID INT NOT NULL,"
@@ -256,22 +281,146 @@ class Dumper:
                              photo_id)
                             )
 
-    def dump_filelocation(self, file_location):
-        """Dump a FileLocation into the Media table
-        Params: FileLocation Telethon object
+    def dump_media(self, media, media_type=None):
+        """Dump a MessageMedia into the Media table
+        Params: media Telethon object
         Returns: ID of inserted row"""
-        fl = file_location
-        if isinstance(fl, tl.InputFileLocation):
-            tuple_ = (None, fl.local_id, fl.volume_id, fl.secret,
-                      InputFileType.NORMAL.value)
-
-        elif isinstance(fl, tl.InputDocumentFileLocation):
-            tuple_ = (None, fl.id, fl.version, fl.access_hash,
-                      InputFileType.DOCUMENT.value)
-        else:
+        if not media:
             return
 
-        return self._insert('Media', tuple_)
+        row = {x: None for x in (
+            'name', 'mime_type', 'size', 'thumbnail_id',
+            'local_id', 'volume_id', 'secret'
+        )}
+        row['type'] = media_type
+        row['extra'] = media.to_dict()
+        sanitize_dict(row['extra'])
+
+        if isinstance(media, tl.MessageMediaContact):
+            row['type'] = 'contact'
+            row['name'] = '{} {}'.format(media.first_name, media.last_name)
+            row['local_id'] = media.user_id
+            try:
+                row['secret'] = int(media.phone_number or '0')
+            except ValueError:
+                row['secret'] = 0
+
+        elif isinstance(media, tl.MessageMediaDocument):
+            row['type'] = 'document'
+            doc = media.document
+            if isinstance(doc, tl.Document):
+                row['mime_type'] = doc.mime_type
+                row['size'] = doc.size
+                row['thumbnail_id'] = self.dump_media(doc.thumb)
+                for attr in doc.attributes:
+                    if isinstance(attr, tl.DocumentAttributeFilename):
+                        row['name'] = attr.file_name
+                        break
+                row['local_id'] = doc.id
+                row['volume_id'] = doc.version
+                row['secret'] = doc.access_hash
+
+        elif isinstance(media, tl.MessageMediaEmpty):
+            row['type'] = 'empty'
+            return
+
+        elif isinstance(media, tl.MessageMediaGame):
+            row['type'] = 'game'
+            game = media.game
+            if isinstance(game, tl.Game):
+                row['name'] = game.short_name
+                row['thumbnail_id'] = self.dump_media(game.photo)
+                row['local_id'] = game.id
+                row['secret'] = game.access_hash
+
+        elif isinstance(media, tl.MessageMediaGeo):
+            row['type'] = 'geo'
+            geo = media.geo
+            if isinstance(geo, tl.GeoPoint):
+                row['name'] = '({}, {})'.format(repr(geo.lat), repr(geo.long))
+
+        elif isinstance(media, tl.MessageMediaGeoLive):
+            row['type'] = 'geolive'
+            geo = media.geo
+            if isinstance(geo, tl.GeoPoint):
+                row['name'] = '({}, {})'.format(repr(geo.lat), repr(geo.long))
+
+        elif isinstance(media, tl.MessageMediaInvoice):
+            row['type'] = 'invoice'
+            row['name'] = media.title
+            row['thumbnail_id'] = self.dump_media(media.photo)
+
+        elif isinstance(media, tl.MessageMediaPhoto):
+            row['type'] = 'photo'
+            row['mime_type'] = 'image/jpeg'
+            media = media.photo
+
+        elif isinstance(media, tl.MessageMediaUnsupported):
+            row['type'] = 'unsupported'
+            return
+
+        elif isinstance(media, tl.MessageMediaVenue):
+            row['type'] = 'venue'
+            row['name'] = '{} - {} ({}, {} {})'.format(
+                media.title, media.address,
+                media.provider, media.venue_id, media.venue_type
+            )
+            geo = media.geo
+            if isinstance(geo, tl.GeoPoint):
+                row['name'] += ' at ({}, {})'.format(
+                    repr(geo.lat), repr(geo.long)
+                )
+
+        elif isinstance(media, tl.MessageMediaWebPage):
+            row['type'] = 'webpage'
+            web = media.webpage
+            if isinstance(web, tl.WebPage):
+                row['name'] = web.title
+                row['thumbnail_id'] = self.dump_media(web.photo, 'thumbnail')
+                row['local_id'] = web.id
+                row['secret'] = web.hash
+
+        if isinstance(media, tl.Photo):
+            # Extra fallback cases for common parts
+            row['type'] = 'photo'
+            row['mime_type'] = 'image/jpeg'
+            row['name'] = str(media.date)
+            sizes = [x for x in media.sizes
+                     if isinstance(x, (tl.PhotoSize, tl.PhotoCachedSize))]
+            if sizes:
+                small = min(sizes, key=lambda s: s.w * s.h)
+                large = max(sizes, key=lambda s: s.w * s.h)
+                media = large
+                if small != large:
+                    row['thumbnail_id'] = self.dump_media(small, 'thumbnail')
+
+        if isinstance(media, (tl.PhotoSize, tl.PhotoCachedSize)):
+            row['type'] = 'photo'
+            row['mime_type'] = 'image/jpeg'
+            if isinstance(media.location, tl.FileLocation):
+                media = media.location
+
+        if isinstance(media, (tl.UserProfilePhoto, tl.ChatPhoto)):
+            row['type'] = 'photo'
+            row['mime_type'] = 'image/jpeg'
+            row['thumbnail_id'] = self.dump_media(
+                media.photo_small, 'thumbnail'
+            )
+            media = media.photo_big
+
+        if isinstance(media, tl.FileLocation):
+            row['local_id'] = media.local_id
+            row['volume_id'] = media.volume_id
+            row['secret'] = media.secret
+
+        if row['type']:
+            return self._insert('Media', (
+                None,
+                row['name'], row['mime_type'], row['size'],
+                row['thumbnail_id'], row['type'],
+                row['local_id'], row['volume_id'], row['secret'],
+                row['extra']
+            ))
 
     def dump_forward(self, forward):
         """Dump a message forward relationship into the Forward table
