@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """A module for dumping export data into the database"""
+import json
 import logging
 import sqlite3
 import time
@@ -31,6 +32,8 @@ def sanitize_dict(dictionary):
     for k, v in dictionary.items():
         if isinstance(v, bytes):
             dictionary[k] = b64encode(v)
+        elif isinstance(v, datetime):
+            dictionary[k] = v.timestamp()
         elif isinstance(v, dict):
             sanitize_dict(v)
 
@@ -298,6 +301,7 @@ class Dumper:
         row['type'] = media_type
         row['extra'] = media.to_dict()
         sanitize_dict(row['extra'])
+        row['extra'] = json.dumps(row['extra'])
 
         if isinstance(media, tl.MessageMediaContact):
             row['type'] = 'contact'
