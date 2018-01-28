@@ -40,14 +40,17 @@ class Dumper:
 
     def __init__(self, config):
         """Initialise the dumper.
-        Params:
-        - settings: a dictionary of settings;
-        - database_name: filename without file extension"""
+        `config` should be a dict-like object with key "DBFileName"
+        """
         self.config = config
-        if 'DBFileName' in config:
-            self.conn = sqlite3.connect('{}.db'.format(self.config['DBFileName']))
+        if 'DBFileName' in self.config:
+            if self.config["DBFileName"] == ':memory:':
+                self.conn = sqlite3.connect(':memory:')
+            else:
+                self.conn = sqlite3.connect('{}.db'.format(self.config['DBFileName']))
         else:
-            self.conn = sqlite3.connect(':memory:')
+            logger.error("A database filename is required!")
+            exit()
         self.cur = self.conn.cursor()
 
         self.chunk_size = max(config.get('ChunkSize', 100), 1)

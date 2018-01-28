@@ -79,7 +79,7 @@ class TestDumpAll(unittest.TestCase):
         login_client(slave, slave_name)
         slave_id = utils.get_peer_id(owner.get_input_entity(slave_name))
 
-        dumper = Dumper({})
+        dumper = Dumper({'DBFileName': ':memory:'})
         dumper.chunk_size = 10
         # (number of messages to handle, send (true) or dump (false))
         actions = (
@@ -160,7 +160,7 @@ class TestDumpAll(unittest.TestCase):
         slave.disconnect()
 
     def test_dump_methods(self):
-        dumper = Dumper({})
+        dumper = Dumper({'DBFileName': ':memory:'})
         message = types.Message(
             id=777,
             to_id=types.PeerUser(123),
