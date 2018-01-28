@@ -459,7 +459,7 @@ class Dumper:
                          (context_id,))
         msg = self.cur.fetchone()
         while msg:
-            yield Dumper.message_from_tuple(msg)
+            yield self.message_from_tuple(msg)
             msg = self.cur.fetchone()
 
     def get_message_count(self, context_id):
@@ -491,7 +491,7 @@ class Dumper:
             self.cur.execute("""SELECT * FROM Message WHERE
                                 ID = ? AND ContextID = ?""",
                              (tuple_[0], context_id))
-            return Dumper.message_from_tuple(self.cur.fetchone())
+            return self.message_from_tuple(self.cur.fetchone())
 
     def _insert(self, into, values):
         """
