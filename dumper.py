@@ -53,10 +53,10 @@ class Dumper:
             exit()
         self.cur = self.conn.cursor()
 
-        self.chunk_size = max(config.get('ChunkSize', 100), 1)
-        self.max_chunks = max(config.get('MaxChunks', 0), 0)
+        self.chunk_size = max(int(config.get('ChunkSize', 100)), 1)
+        self.max_chunks = max(int(config.get('MaxChunks', 0)), 0)
         self.force_no_change_dump_after = \
-            max(config.get('ForceNoChangeDumpAfter', 0), -1)
+            max(int(config.get('ForceNoChangeDumpAfter', 0)), -1)
 
         self.cur.execute("SELECT name FROM sqlite_master "
                          "WHERE type='table' AND name='Version'")

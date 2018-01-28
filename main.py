@@ -52,7 +52,7 @@ def main():
             )
             for who in entities:
                 downloader.save_messages(client, dumper, who)
-        else:
+        elif 'Blacklist' in dumper.config:
             # May be blacklist, so save the IDs on who to avoid
             entities = downloader.load_entities_from_str(
                 client, dumper.config['Blacklist']
@@ -61,6 +61,11 @@ def main():
             for entity in downloader.fetch_dialogs(client):
                 if utils.get_peer_id(entity) not in avoid:
                     downloader.save_messages(client, dumper, entity)
+        else:
+            # Neither blacklist nor whitelist - get all
+            for entity in downloader.fetch_dialogs(client):
+                downloader.save_messages(client, dumper, entity)
+        else:
     except KeyboardInterrupt:
         pass
     finally:
