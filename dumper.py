@@ -54,34 +54,34 @@ class Dumper:
         else:
             logger.error("A database filename is required!")
             exit()
-        self.cur = self.conn.cursor()
+        c = self.conn.cursor()
 
         self.chunk_size = max(int(config.get('ChunkSize', 100)), 1)
         self.max_chunks = max(int(config.get('MaxChunks', 0)), 0)
         self.force_no_change_dump_after = \
             max(int(config.get('ForceNoChangeDumpAfter', 0)), -1)
 
-        self.cur.execute("SELECT name FROM sqlite_master "
+        c.execute("SELECT name FROM sqlite_master "
                          "WHERE type='table' AND name='Version'")
 
-        if self.cur.fetchone():
+        if c.fetchone():
             # Tables already exist, check for the version
-            self.cur.execute("SELECT Version FROM Version")
-            version = self.cur.fetchone()[0]
+            c.execute("SELECT Version FROM Version")
+            version = c.fetchone()[0]
             if version != DB_VERSION:
                 self._upgrade_database(old=version)
                 self.conn.commit()
         else:
             # Tables don't exist, create new ones
-            self.cur.execute("CREATE TABLE Version (Version INTEGER)")
-            self.cur.execute("INSERT INTO Version VALUES (?)", (DB_VERSION,))
+            c.execute("CREATE TABLE Version (Version INTEGER)")
+            c.execute("INSERT INTO Version VALUES (?)", (DB_VERSION,))
 
-            self.cur.execute("CREATE TABLE Forward("
-                             "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
-                             "OriginalDate INT NOT NULL,"
-                             "FromID INT,"  # User or Channel ID
-                             "ChannelPost INT,"
-                             "PostAuthor TEXT)")
+            c.execute("CREATE TABLE Forward("
+                      "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
+                      "OriginalDate INT NOT NULL,"
+                      "FromID INT,"  # User or Channel ID
+                      "ChannelPost INT,"
+                      "PostAuthor TEXT)")
 
             # For InputFileLocation:
             #   local_id -> LocalID
@@ -92,88 +92,88 @@ class Dumper:
             #   id -> LocalID
             #   access_hash -> Secret
             #   version -> VolumeID
-            self.cur.execute("CREATE TABLE Media("
-                             "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
-                             # Basic useful information, if available
-                             "Name TEXT,"
-                             "MimeType TEXT,"
-                             "Size INT,"
-                             "ThumbnailID INT,"
-                             "Type TEXT,"
-                             # Fields required to download the file
-                             "LocalID INT,"
-                             "VolumeID INT,"
-                             "Secret INT,"
-                             # Whatever else as JSON here
-                             "Extra TEXT,"
-                             "FOREIGN KEY (ThumbnailID) REFERENCES Media(ID))")
+            c.execute("CREATE TABLE Media("
+                      "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
+                      # Basic useful information, if available
+                      "Name TEXT,"
+                      "MimeType TEXT,"
+                      "Size INT,"
+                      "ThumbnailID INT,"
+                      "Type TEXT,"
+                      # Fields required to download the file
+                      "LocalID INT,"
+                      "VolumeID INT,"
+                      "Secret INT,"
+                      # Whatever else as JSON here
+                      "Extra TEXT,"
+                      "FOREIGN KEY (ThumbnailID) REFERENCES Media(ID))")
 
-            self.cur.execute("CREATE TABLE User("
-                             "ID INT NOT NULL,"
-                             "DateUpdated INT NOT NULL,"
-                             "FirstName TEXT NOT NULL,"
-                             "LastName TEXT,"
-                             "Username TEXT,"
-                             "Phone TEXT,"
-                             "Bio TEXT,"
-                             "Bot INTEGER,"
-                             "CommonChatsCount INT NOT NULL,"
-                             "PictureID INT,"
-                             "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                             "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+            c.execute("CREATE TABLE User("
+                      "ID INT NOT NULL,"
+                      "DateUpdated INT NOT NULL,"
+                      "FirstName TEXT NOT NULL,"
+                      "LastName TEXT,"
+                      "Username TEXT,"
+                      "Phone TEXT,"
+                      "Bio TEXT,"
+                      "Bot INTEGER,"
+                      "CommonChatsCount INT NOT NULL,"
+                      "PictureID INT,"
+                      "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
+                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
-            self.cur.execute("CREATE TABLE Channel("
-                             "ID INT NOT NULL,"
-                             "DateUpdated INT NOT NULL,"
-                             # "CreatorID INT,"
-                             "About TEXT,"
-                             # "Signatures INT,"
-                             "Title TEXT NOT NULL,"
-                             "Username TEXT,"
-                             "PictureID INT,"
-                             "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                             "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+            c.execute("CREATE TABLE Channel("
+                      "ID INT NOT NULL,"
+                      "DateUpdated INT NOT NULL,"
+                      # "CreatorID INT,"
+                      "About TEXT,"
+                      # "Signatures INT,"
+                      "Title TEXT NOT NULL,"
+                      "Username TEXT,"
+                      "PictureID INT,"
+                      "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
+                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
-            self.cur.execute("CREATE TABLE Supergroup("
-                             "ID INT NOT NULL,"
-                             "DateUpdated INT NOT NULL,"
-                             # "CreatorID INT,"
-                             "About TEXT,"
-                             "Title TEXT NOT NULL,"
-                             "Username TEXT,"
-                             "PictureID INT,"
-                             "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                             "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+            c.execute("CREATE TABLE Supergroup("
+                      "ID INT NOT NULL,"
+                      "DateUpdated INT NOT NULL,"
+                      # "CreatorID INT,"
+                      "About TEXT,"
+                      "Title TEXT NOT NULL,"
+                      "Username TEXT,"
+                      "PictureID INT,"
+                      "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
+                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
-            self.cur.execute("CREATE TABLE Chat("
-                             "ID INT NOT NULL,"
-                             "DateUpdated INT NOT NULL,"
-                             # "CreatorID INT,"
-                             "Title TEXT NOT NULL,"
-                             "MigratedToID INT,"
-                             "PictureID INT,"
-                             "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                             "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+            c.execute("CREATE TABLE Chat("
+                       "ID INT NOT NULL,"
+                       "DateUpdated INT NOT NULL,"
+                       # "CreatorID INT,"
+                       "Title TEXT NOT NULL,"
+                       "MigratedToID INT,"
+                       "PictureID INT,"
+                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
+                       "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
-            self.cur.execute("CREATE TABLE Message("
-                             "ID INT NOT NULL,"
-                             "ContextID INT NOT NULL,"
-                             "Date INT NOT NULL,"
-                             "FromID INT,"
-                             "Message TEXT,"
-                             "ReplyMessageID INT,"
-                             "ForwardID INT,"
-                             "PostAuthor TEXT,"
-                             "ViewCount INT,"
-                             "MediaID INT,"
-                             "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
-                             "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
-                             "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
+            c.execute("CREATE TABLE Message("
+                      "ID INT NOT NULL,"
+                      "ContextID INT NOT NULL,"
+                      "Date INT NOT NULL,"
+                      "FromID INT,"
+                      "Message TEXT,"
+                      "ReplyMessageID INT,"
+                      "ForwardID INT,"
+                      "PostAuthor TEXT,"
+                      "ViewCount INT,"
+                      "MediaID INT,"
+                      "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
+                      "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
+                      "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
 
-            self.cur.execute("CREATE TABLE LastMessage("
-                             "ContextID INT NOT NULL,"
-                             "ID INT NOT NULL,"
-                             "PRIMARY KEY (ContextID)) WITHOUT ROWID")
+            c.execute("CREATE TABLE LastMessage("
+                       "ContextID INT NOT NULL,"
+                       "ID INT NOT NULL,"
+                       "PRIMARY KEY (ContextID)) WITHOUT ROWID")
             self.conn.commit()
 
     def _upgrade_database(self, old):
@@ -233,8 +233,8 @@ class Dumper:
                   user_full.common_chats_count,
                   photo_id)
 
-        self.cur.execute('SELECT * FROM User ORDER BY DateUpdated DESC')
-        last = self.cur.fetchone()
+        last = self.conn.execute(
+            'SELECT * FROM User ORDER BY DateUpdated DESC').fetchone()
         if (self.rows_are_same(values, last, ignore_column=1)
                 and values[1] - last[1] < int(self.force_no_change_dump_after)):
             return False
@@ -450,33 +450,39 @@ class Dumper:
         if which not in ('MIN', 'MAX'):
             raise ValueError('Parameter', which, 'must be MIN or MAX.')
 
-        self.cur.execute("""SELECT * FROM Message WHERE ID = (
-                                SELECT {which}(ID) FROM Message
-                                WHERE ContextID = ?
-                            )
-                         """.format(which=which), (context_id,))
-        return self.message_from_tuple(self.cur.fetchone())
+        return self.message_from_tuple(self.conn.execute(
+            """SELECT * FROM Message WHERE ID = (
+                    SELECT {which}(ID) FROM Message
+                    WHERE ContextID = ?
+                )
+            """.format(which=which), (context_id,)).fetchone())
 
     def iter_messages(self, context_id):
         """Iterates over the messages on context_id, in ascending order"""
-        self.cur.execute("""SELECT * FROM Message WHERE ContextID = ? ORDER BY ID ASC""",
-                         (context_id,))
-        for m in self.cur.fetchall():
-            yield self.message_from_tuple(m)
+        c = self.conn.execute(
+            """SELECT * FROM Message WHERE ContextID = ? ORDER BY ID ASC""",
+            (context_id,)
+        )
+        msg = c.fetchone()
+        while msg:
+            yield self.message_from_tuple(msg)
+            msg = c.fetchone()
 
     def get_message_count(self, context_id):
         """Gets the message count for the given context"""
-        self.cur.execute("SELECT COUNT(*) FROM MESSAGE WHERE ContextID = ?",
-                         (context_id,))
-        tuple_ = self.cur.fetchone()
+        tuple_ = self.conn.execute(
+            "SELECT COUNT(*) FROM MESSAGE WHERE ContextID = ?", (context_id,)
+        ).fetchone()
         return tuple_[0] if tuple_ else 0
 
     def update_last_dumped_message(self, context_id, msg_id):
         """Updates the last dumped message"""
 
         try:
-            self.cur.execute("INSERT OR REPLACE INTO LastMessage VALUES (?,?)",
-                             (context_id, msg_id))
+            self.conn.execute(
+                "INSERT OR REPLACE INTO LastMessage VALUES (?,?)",
+                (context_id, msg_id)
+            )
             self.conn.commit()
         except sqlite3.IntegrityError as error:
             self.conn.rollback()
@@ -486,14 +492,14 @@ class Dumper:
     def get_last_dumped_message(self, context_id):
         """Returns the last dumped message for a context iD.
         Used to determine from where a backup should resume."""
-        self.cur.execute("SELECT ID FROM LastMessage WHERE ContextID = ?",
-                         (context_id,))
-        tuple_ = self.cur.fetchone()
+        c = self.conn.execute("SELECT ID FROM LastMessage WHERE ContextID = ?",
+                              (context_id,))
+        tuple_ = c.fetchone()
         if tuple_:
-            self.cur.execute("""SELECT * FROM Message WHERE
-                                ID = ? AND ContextID = ?""",
-                             (tuple_[0], context_id))
-            return self.message_from_tuple(self.cur.fetchone())
+            c.execute("""SELECT * FROM Message WHERE
+                         ID = ? AND ContextID = ?""",
+                      (tuple_[0], context_id))
+            return self.message_from_tuple(c.fetchone())
 
     def _insert(self, into, values):
         """
@@ -502,10 +508,10 @@ class Dumper:
         """
         try:
             fmt = ','.join('?' * len(values))
-            self.cur.execute("INSERT OR REPLACE INTO {} VALUES ({})"
-                             .format(into, fmt), values)
+            c = self.conn.execute("INSERT OR REPLACE INTO {} VALUES ({})"
+                                  .format(into, fmt), values)
             self.conn.commit()
-            return self.cur.lastrowid
+            return c.lastrowid
         except sqlite3.IntegrityError as error:
             self.conn.rollback()
             logger.error("Integrity error: %s", str(error))
@@ -515,13 +521,14 @@ class Dumper:
         if not message_tuple:
             return
 
-        self.cur.execute("SELECT * FROM Forward WHERE ID = ?",
-                         (message_tuple[6],))
-        fwd = Dumper.fwd_from_tuple(self.cur.fetchone())
+        c = self.conn.cursor()
+        c.execute("SELECT * FROM Forward WHERE ID = ?",
+                  (message_tuple[6],))
+        fwd = Dumper.fwd_from_tuple(c.fetchone())
 
-        self.cur.execute("SELECT * FROM Media WHERE ID = ?",
-                         (message_tuple[9],))
-        loc = Dumper.location_from_tuple(self.cur.fetchone())
+        c.execute("SELECT * FROM Media WHERE ID = ?",
+                  (message_tuple[9],))
+        loc = Dumper.location_from_tuple(c.fetchone())
         if loc == tl.InputFileLocation:
             media = tl.MessageMediaPhoto(
                 caption=message_tuple[4],
