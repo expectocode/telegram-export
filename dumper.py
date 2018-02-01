@@ -461,10 +461,8 @@ class Dumper:
         """Iterates over the messages on context_id, in ascending order"""
         self.cur.execute("""SELECT * FROM Message WHERE ContextID = ? ORDER BY ID ASC""",
                          (context_id,))
-        msg = self.cur.fetchone()
-        while msg:
-            yield self.message_from_tuple(msg)
-            msg = self.cur.fetchone()
+        for m in self.cur.fetchall():
+            yield self.message_from_tuple(m)
 
     def get_message_count(self, context_id):
         """Gets the message count for the given context"""
