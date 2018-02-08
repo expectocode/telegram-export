@@ -40,6 +40,12 @@ def save_messages(client, dumper, target):
     # If we don't have such ID, we must reach the end or until
     # we don't receive any more messages.
     stop_at = getattr(dumper.get_message(target_id, 'MAX'), 'id', 0)
+    if stop_at > request.offset_id:
+        # 987654321
+        # stop ^ ^
+        # resume |
+        # If we resume after the maximum ID  we have we need to reach the end.
+        stop_at = 0
 
     found = dumper.get_message_count(target_id)
     entities = {}
