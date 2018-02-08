@@ -31,11 +31,15 @@ def sanitize_dict(dictionary):
     """
     for k, v in dictionary.items():
         if isinstance(v, bytes):
-            dictionary[k] = b64encode(v)
+            dictionary[k] = str(b64encode(v), encoding='ascii')
         elif isinstance(v, datetime):
             dictionary[k] = v.timestamp()
         elif isinstance(v, dict):
             sanitize_dict(v)
+        elif isinstance(v, list):
+            for d in v:
+                if isinstance(d, dict):
+                    sanitize_dict(d)
 
 
 class Dumper:
