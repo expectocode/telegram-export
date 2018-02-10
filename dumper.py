@@ -63,7 +63,7 @@ class Dumper:
         self.chunk_size = max(int(config.get('ChunkSize', 100)), 1)
         self.max_chunks = max(int(config.get('MaxChunks', 0)), 0)
         self.force_no_change_dump_after = \
-            max(int(config.get('ForceNoChangeDumpAfter', 0)), -1)
+            max(int(config.get('ForceNoChangeDumpAfter')), -1)
 
         c.execute("SELECT name FROM sqlite_master "
                          "WHERE type='table' AND name='Version'")
@@ -271,7 +271,7 @@ class Dumper:
         return self._insert('Supergroup',
                             (supergroup.id,
                              timestamp,
-                             supergroup_full.about,
+                             supergroup_full.about if hasattr(supergroup_full, 'about') else '',
                              supergroup.title,
                              supergroup.username,
                              photo_id)
