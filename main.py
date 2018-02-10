@@ -32,6 +32,7 @@ def main():
     config = load_config()
     dumper = Dumper(config['Dumper'])
     config = config['TelegramAPI']
+    cache_file = config['SessionName'] + '.tl'
 
     client = TelegramClient(
         config['SessionName'], config['ApiId'], config['ApiHash']
@@ -58,7 +59,7 @@ def main():
                 client, dumper.config['Blacklist']
             )
             avoid = set(utils.get_peer_id(x) for x in entities)
-            for entity in downloader.fetch_dialogs(client):
+            for entity in downloader.fetch_dialogs(client, cache_file=cache_file):
                 if utils.get_peer_id(entity) not in avoid:
                     downloader.save_messages(client, dumper, entity)
         else:
