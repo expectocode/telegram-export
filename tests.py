@@ -54,17 +54,7 @@ class TestDumpAll(unittest.TestCase):
     def test_interrupted_dump(self):
         """
         This method will ensure that all messages are retrieved even
-        on weird conditions. The process will go as follows to cover
-        most corner cases:
-            - 23 sent
-            - 20 exported (missing  3)
-            - 14 sent     (missing 17)
-            - 3  exported (missing 14)
-            - 2  sent     (missing 16)
-            - 10 exported (missing  6)
-            - 13 sent     (missing 19)
-            -  6 exported (missing 13)
-            - 13 exported
+        on weird conditions.
         """
         config = configparser.ConfigParser()
         config.read('config.ini')
@@ -72,8 +62,7 @@ class TestDumpAll(unittest.TestCase):
 
         client = TelegramClient(None, config['ApiId'], config['ApiHash'])
         login_client(client, gen_username(10))
-        # my_id = client.get_me().id
-        my_id = 0
+        my_id = client.get_me().id
 
         dumper = Dumper({'DBFileName': ':memory:'})
         dumper.chunk_size = 1

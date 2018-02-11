@@ -43,9 +43,11 @@ def save_messages(client, dumper, target):
         hash=0
     )
     __log__.info('Starting dump with %s', target)
-
-    target_id = 0 if isinstance(target, tl.InputPeerSelf) else get_peer_id(target)
     chunks_left = dumper.max_chunks
+    if isinstance(target, tl.InputPeerSelf):
+        target_id = client.get_me().id
+    else:
+        target_id = get_peer_id(target)
 
     req.offset_id, req.offset_date, stop_at = dumper.get_resume(target_id)
     if req.offset_id:
