@@ -17,13 +17,12 @@ logger.setLevel(logging.DEBUG)
 
 def load_config():
     # Load from file
-    defaults = {'ForceNoChangeDumpAfter': 7200, 'DBFileName': 'export'}
-    config = configparser.ConfigParser(defaults)
+    config = configparser.ConfigParser()
     config.read('config.ini')
 
     # Convert minutes to seconds
     config['Dumper']['ForceNoChangeDumpAfter'] = str(
-        config.getint('Dumper', 'ForceNoChangeDumpAfter') * 60)
+        config['Dumper'].getint('ForceNoChangeDumpAfter', 7200) * 60)
 
     return config
 
