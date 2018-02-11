@@ -12,7 +12,7 @@ __log__ = logging.getLogger(__name__)
 
 def save_messages(client, dumper, target):
     target = client.get_input_entity(target)
-    request = rpc.messages.GetHistoryRequest(
+    req = rpc.messages.GetHistoryRequest(
         peer=target,
         offset_id=0,
         offset_date=None,
@@ -24,34 +24,18 @@ def save_messages(client, dumper, target):
     )
     __log__.info('Starting dump with %s', target)
 
-    target_id = get_peer_id(target)
+    target_id = 0 if isinstance(target, tl.InputPeerSelf) else get_peer_id(target)
     chunks_left = dumper.max_chunks
 
-    # Resume from the last dumped message. It's important to
-    # remember that we go -> 0, although it can be confusing.
-    latest = dumper.get_last_dumped_message(target_id)
-    if latest:
-        __log__.info('Resuming at %s (%s)', latest.date, latest.id)
-        # Offset is exclusive, which makes it easier
-        request.offset_id = latest.id
-        request.offset_date = latest.date
-
-    # Stop as soon as we reach the highest ID we already have.
-    # If we don't have such ID, we must reach the end or until
-    # we don't receive any more messages.
-    stop_at = getattr(dumper.get_message(target_id, 'MAX'), 'id', 0)
-    if stop_at > request.offset_id:
-        # 987654321
-        # stop ^ ^
-        # resume |
-        # If we resume after the maximum ID  we have we need to reach the end.
-        stop_at = 0
+    req.offset_id, req.offset_date, stop_at = dumper.get_resume(target_id)
+    if req.offset_id:
+        __log__.info('Resuming at %s (%s)', req.offset_date, req.offset_id)
 
     found = dumper.get_message_count(target_id)
     entities = {}
     while True:
         # TODO How should edits be handled? Always read first two days?
-        history = client(request)
+        history = client(req)
         entities.update({get_peer_id(c): c for c in history.chats})
         entities.update({get_peer_id(u): u for u in history.users})
 
@@ -73,32 +57,37 @@ def save_messages(client, dumper, target):
         if history.messages:
             # We may reinsert some we already have (so found > total)
             found = min(found + len(history.messages), total_messages)
-            request.offset_id = min(m.id for m in history.messages)
-            request.offset_date = min(m.date for m in history.messages)
+            req.offset_id = min(m.id for m in history.messages)
+            req.offset_date = min(m.date for m in history.messages)
 
         __log__.debug('Downloaded {}/{} ({:.1%})'.format(
             found, total_messages, found / total_messages
         ))
 
-        if len(history.messages) < request.limit:
+        if len(history.messages) < req.limit:
             __log__.info('Received less messages than limit, done.')
             # Receiving less messages than the limit means we have reached
             # the end, so we need to exit. Next time we'll start from offset
             # 0 again so we can check for new messages.
-            dumper.update_last_dumped_message(target_id, 0)
+            max_msg = dumper.get_message(target_id, 'MAX')
+            dumper.save_resume(target_id, stop_at=max_msg.id)
             break
 
         # We dump forward (message ID going towards 0), so as soon
         # as the minimum message ID (now in offset ID) is less than
         # the highest ID ("closest" bound we need to reach), stop.
-        if request.offset_id <= stop_at:
-            __log__.info('Already have the rest of messages, done.')
-            dumper.update_last_dumped_message(target_id, 0)
+        if req.offset_id <= stop_at:
+            __log__.info('Reached already-dumped messages, done.')
+            max_msg = dumper.get_message(target_id, 'MAX')
+            dumper.save_resume(target_id, stop_at=max_msg.id)
             break
 
         # Keep track of the last target ID (smallest one),
         # so we can resume from here in case of interruption.
-        dumper.update_last_dumped_message(target_id, request.offset_id)
+        dumper.save_resume(
+            target_id, msg=req.offset_id, msg_date=req.offset_date,
+            stop_at=stop_at  # We DO want to preserve stop_at though.
+        )
 
         chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
         if chunks_left == 0:

@@ -63,7 +63,7 @@ class Dumper:
         self.chunk_size = max(int(config.get('ChunkSize', 100)), 1)
         self.max_chunks = max(int(config.get('MaxChunks', 0)), 0)
         self.force_no_change_dump_after = \
-            max(int(config['ForceNoChangeDumpAfter']), -1)
+            max(int(config.get('ForceNoChangeDumpAfter', 0)), -1)
 
         c.execute("SELECT name FROM sqlite_master "
                          "WHERE type='table' AND name='Version'")
@@ -174,10 +174,12 @@ class Dumper:
                       "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
                       "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
 
-            c.execute("CREATE TABLE LastMessage("
-                       "ContextID INT NOT NULL,"
-                       "ID INT NOT NULL,"
-                       "PRIMARY KEY (ContextID)) WITHOUT ROWID")
+            c.execute("CREATE TABLE Resume("
+                      "ContextID INT NOT NULL,"
+                      "ID INT NOT NULL,"
+                      "Date INT NOT NULL,"
+                      "StopAt INT NOT NULL,"
+                      "PRIMARY KEY (ContextID)) WITHOUT ROWID")
             self.conn.commit()
 
     def _upgrade_database(self, old):
@@ -493,17 +495,24 @@ class Dumper:
             logger.error("Integrity error: %s", str(error))
             raise
 
-    def get_last_dumped_message(self, context_id):
-        """Returns the last dumped message for a context iD.
-        Used to determine from where a backup should resume."""
-        c = self.conn.execute("SELECT ID FROM LastMessage WHERE ContextID = ?",
-                              (context_id,))
-        tuple_ = c.fetchone()
-        if tuple_:
-            c.execute("""SELECT * FROM Message WHERE
-                         ID = ? AND ContextID = ?""",
-                      (tuple_[0], context_id))
-            return self.message_from_tuple(c.fetchone())
+    def get_resume(self, context_id):
+        """
+        For the given context ID, return a tuple consisting of the offset
+        ID and offset date from which to continue, as well as at which ID
+        to stop.
+        """
+        c = self.conn.execute("SELECT ID, Date, StopAt FROM Resume WHERE "
+                              "ContextID = ?", (context_id,))
+        return c.fetchone() or (0, 0, 0)
+
+    def save_resume(self, context_id, msg=0, msg_date=0, stop_at=0):
+        """
+        Saves the information required to resume a download later.
+        """
+        if isinstance(msg_date, datetime):
+            msg_date = int(msg_date.timestamp())
+
+        return self._insert('Resume', (context_id, msg, msg_date, stop_at))
 
     def _insert(self, into, values):
         """

@@ -70,82 +70,53 @@ class TestDumpAll(unittest.TestCase):
         config.read('config.ini')
         config = config['TelegramAPI']
 
-        owner = TelegramClient(None, config['ApiId'], config['ApiHash'])
-        owner_name = gen_username(10)
-        login_client(owner, owner_name)
-
-        slave = TelegramClient(None, config['ApiId'], config['ApiHash'])
-        slave_name = gen_username(10)
-        login_client(slave, slave_name)
-        slave_id = utils.get_peer_id(owner.get_input_entity(slave_name))
+        client = TelegramClient(None, config['ApiId'], config['ApiHash'])
+        login_client(client, gen_username(10))
+        # my_id = client.get_me().id
+        my_id = 0
 
         dumper = Dumper({'DBFileName': ':memory:'})
-        dumper.chunk_size = 10
-        # (number of messages to handle, send (true) or dump (false))
+        dumper.chunk_size = 1
+        SEND, DUMP = True, False
         actions = (
-            # True means out (send), False means in (dump)
-            # No if we don't have them, yes if we do (upper = last action)
-            (23, True),   # {NO:23}
-            (20, False),  # {YES:20}{no:3}
-            (14, True),   # {NO:14}{yes:20}{no:3}
-            (3,  False),  # {no:14}{YES:23}
-            (2,  True),   # {NO:16}{yes:23}
-            (10, False),  # {YES:10}{no:6}{yes:23}
-            (13, True),   # {NO:13}{yes:10}{no:6}{yes:23}
-            (6,  False),  # {no:13}{YES:16 yes:23}
-            (13, False),  # {YES:13 yes:39}
-                          # {yes:52}
+            (3, SEND),
+            (2, DUMP),
+            (2, SEND),
+            (2, DUMP),  # Actually one will be dumped then back to start
+            (1, SEND),
+            (2, DUMP),
+            (1, SEND),
+            (2, DUMP),  # Actually one will be saved and the other updated
+            (2, SEND),
+            (3, DUMP),
+            (1, SEND),
+            (1, DUMP),
+            (1, DUMP),
         )
 
-        # Keep a array holding either None, False, True so we can visually
-        # represent which wasn't sent, which was, and which we have dumped.
-        visual = [None] * sum(n for n, send in actions if send)
-        ok_visuals = [
-            '_____________________________00000000000000000000000',
-            '_____________________________11111111111111111111000',  # Starts
-            '_______________0000000000000011111111111111111111000',
-            '_______________0000000000000011111111111111111111111',  # Resumes
-            '_____________000000000000000011111111111111111111111',
-            '_____________111111111100000011111111111111111111111',  # Starts
-            '0000000000000111111111100000011111111111111111111111',
-            '0000000000000111111111111111111111111111111111111111',  # Resumes
-            '1111111111111111111111111111111111111111111111111111'   # Starts
-        ]
-
-        print(owner_name, 'cleared the chat with', slave_name)
-        owner(functions.messages.DeleteHistoryRequest(slave_name, 0))
+        client(functions.messages.DeleteHistoryRequest('me', 0))
 
         which = 1
-        for amount, out in actions:
-            if out:
-                print(slave_name, 'is sending', amount, 'messages...')
-                for i in range(amount):
-                    if i % 2 == 0:
-                        slave.send_message(owner_name, str(which))
-                    else:
-                        owner.send_message(slave_name, str(which))
-                    visual[-which] = False
+        for amount, what in actions:
+            if what is SEND:
+                print('Sending', amount, 'messages...')
+                for _ in range(amount):
+                    client.send_message('me', str(which))
                     which += 1
-                time.sleep(1)
+                    time.sleep(1)
             else:
-                print(owner_name, 'is dumping', amount, 'messages...')
+                print('Dumping', amount, 'messages...')
                 chunks = (amount + dumper.chunk_size - 1) // dumper.chunk_size
                 dumper.max_chunks = chunks
-                downloader.save_messages(owner, dumper, slave_name)
-                for msg in dumper.iter_messages(slave_id):
-                    visual[-int(msg.message)] = True
+                downloader.save_messages(client, dumper, 'me')
 
-            curr = ''.join('_' if x is None else str(int(x)) for x in visual)
-            print('Current visual:', curr)
-            assert curr == ok_visuals.pop(0)
-
-        print(owner_name, 'full history with', slave_name)
-        messages = owner.get_message_history(slave_name, limit=None)
+        messages = client.get_message_history('me', limit=None)
+        print('Full history')
         for msg in reversed(messages):
             print('ID:', msg.id, '; Message:', msg.message)
 
         print('Dumped history')
-        dumped = list(dumper.iter_messages(slave_id))
+        dumped = list(dumper.iter_messages(my_id))
         for msg in dumped:
             print('ID:', msg.id, '; Message:', msg.message)
 
@@ -156,8 +127,7 @@ class TestDumpAll(unittest.TestCase):
             'Dumped messages do not match'
 
         print('All good! Test passed!')
-        owner.disconnect()
-        slave.disconnect()
+        client.disconnect()
 
     def test_dump_methods(self):
         dumper = Dumper({'DBFileName': ':memory:'})
