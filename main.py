@@ -1,9 +1,7 @@
 import configparser
 import logging
-from getpass import getpass
 
 from telethon import TelegramClient, utils
-from telethon.errors import SessionPasswordNeededError
 
 import downloader
 from dumper import Dumper
@@ -39,11 +37,7 @@ def main():
     try:
         client.connect()
         if not client.is_user_authorized():
-            client.sign_in(config['PhoneNumber'])
-            try:
-                client.sign_in(code=input('Enter code: '))
-            except SessionPasswordNeededError:
-                client.sign_in(password=getpass())
+            client.start(config['PhoneNumber'])
 
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
