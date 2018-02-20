@@ -119,6 +119,8 @@ def save_messages(client, dumper, target):
             break
 
         sleep(1)
+        dumper.commit()
+    dumper.commit()
 
     __log__.info('Done. Retrieving full information about entities.')
     # TODO Save their profile picture

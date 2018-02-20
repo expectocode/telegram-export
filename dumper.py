@@ -523,12 +523,17 @@ class Dumper:
             fmt = ','.join('?' * len(values))
             c = self.conn.execute("INSERT OR REPLACE INTO {} VALUES ({})"
                                   .format(into, fmt), values)
-            self.conn.commit()
             return c.lastrowid
         except sqlite3.IntegrityError as error:
             self.conn.rollback()
             logger.error("Integrity error: %s", str(error))
             raise
+
+    def commit(self):
+        """
+        Commits the changes made to the database to persist on disk.
+        """
+        self.conn.commit()
 
     def message_from_tuple(self, message_tuple):
         if not message_tuple:
