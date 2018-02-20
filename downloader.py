@@ -145,14 +145,14 @@ def save_messages(client, dumper, target):
         elif etype == tl.PeerChannel:
             if hasattr(entity, 'left') and entity.left:
                 continue
-            full_channel = client(rpc.channels.GetFullChannelRequest(entity))
+            full = client(rpc.channels.GetFullChannelRequest(entity))
+            assert isinstance(full, tl.messages.ChatFull)
             sleep(1)
-            photo_id = dumper.dump_media(full_channel.chat_photo)
+            photo_id = dumper.dump_media(full.full_chat.chat_photo)
             if entity.megagroup:
-                dumper.dump_supergroup(full_channel, entity, photo_id=photo_id)
+                dumper.dump_supergroup(full, entity, photo_id=photo_id)
             else:
-                dumper.dump_channel(full_channel.full_chat, entity,
-                                    photo_id=photo_id)
+                dumper.dump_channel(full, entity, photo_id=photo_id)
 
     __log__.info('Dump with %s finished', target)
 
