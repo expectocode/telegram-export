@@ -63,8 +63,8 @@ def save_messages(client, dumper, target):
 
         for m in history.messages:
             if isinstance(m, types.Message):
-                if m.media:
-                    download_media(client, msg=m, target_id=target_id)
+                #if m.media:
+                #    download_media(client, msg=m, target_id=target_id)
                 fwd_id = dumper.dump_forward(m.fwd_from)
                 media_id = dumper.dump_media(m.media)
                 dumper.dump_message(m, target_id,
@@ -149,10 +149,11 @@ def save_messages(client, dumper, target):
             assert isinstance(full, types.messages.ChatFull)
             sleep(1)
             photo_id = dumper.dump_media(full.full_chat.chat_photo)
+            # TODO Maybe just pass messages.ChatFull to dumper...
             if entity.megagroup:
-                dumper.dump_supergroup(full, entity, photo_id=photo_id)
+                dumper.dump_supergroup(full.full_chat, entity, photo_id=photo_id)
             else:
-                dumper.dump_channel(full, entity, photo_id=photo_id)
+                dumper.dump_channel(full.full_chat, entity, photo_id=photo_id)
 
     __log__.info('Dump with %s finished', target)
 
