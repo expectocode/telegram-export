@@ -8,7 +8,7 @@ from base64 import b64encode
 from datetime import datetime
 from enum import Enum
 
-from telethon.tl import types as tl
+from telethon.tl import types
 from telethon.utils import resolve_id
 
 logger = logging.getLogger(__name__)
@@ -309,7 +309,7 @@ class Dumper:
         sanitize_dict(row['extra'])
         row['extra'] = json.dumps(row['extra'])
 
-        if isinstance(media, tl.MessageMediaContact):
+        if isinstance(media, types.MessageMediaContact):
             row['type'] = 'contact'
             row['name'] = '{} {}'.format(media.first_name, media.last_name)
             row['local_id'] = media.user_id
@@ -318,88 +318,88 @@ class Dumper:
             except ValueError:
                 row['secret'] = 0
 
-        elif isinstance(media, tl.MessageMediaDocument):
+        elif isinstance(media, types.MessageMediaDocument):
             row['type'] = 'document'
             doc = media.document
-            if isinstance(doc, tl.Document):
+            if isinstance(doc, types.Document):
                 row['mime_type'] = doc.mime_type
                 row['size'] = doc.size
                 row['thumbnail_id'] = self.dump_media(doc.thumb)
                 for attr in doc.attributes:
-                    if isinstance(attr, tl.DocumentAttributeFilename):
+                    if isinstance(attr, types.DocumentAttributeFilename):
                         row['name'] = attr.file_name
                         break
                 row['local_id'] = doc.id
                 row['volume_id'] = doc.version
                 row['secret'] = doc.access_hash
 
-        elif isinstance(media, tl.MessageMediaEmpty):
+        elif isinstance(media, types.MessageMediaEmpty):
             row['type'] = 'empty'
             return
 
-        elif isinstance(media, tl.MessageMediaGame):
+        elif isinstance(media, types.MessageMediaGame):
             row['type'] = 'game'
             game = media.game
-            if isinstance(game, tl.Game):
+            if isinstance(game, types.Game):
                 row['name'] = game.short_name
                 row['thumbnail_id'] = self.dump_media(game.photo)
                 row['local_id'] = game.id
                 row['secret'] = game.access_hash
 
-        elif isinstance(media, tl.MessageMediaGeo):
+        elif isinstance(media, types.MessageMediaGeo):
             row['type'] = 'geo'
             geo = media.geo
-            if isinstance(geo, tl.GeoPoint):
+            if isinstance(geo, types.GeoPoint):
                 row['name'] = '({}, {})'.format(repr(geo.lat), repr(geo.long))
 
-        elif isinstance(media, tl.MessageMediaGeoLive):
+        elif isinstance(media, types.MessageMediaGeoLive):
             row['type'] = 'geolive'
             geo = media.geo
-            if isinstance(geo, tl.GeoPoint):
+            if isinstance(geo, types.GeoPoint):
                 row['name'] = '({}, {})'.format(repr(geo.lat), repr(geo.long))
 
-        elif isinstance(media, tl.MessageMediaInvoice):
+        elif isinstance(media, types.MessageMediaInvoice):
             row['type'] = 'invoice'
             row['name'] = media.title
             row['thumbnail_id'] = self.dump_media(media.photo)
 
-        elif isinstance(media, tl.MessageMediaPhoto):
+        elif isinstance(media, types.MessageMediaPhoto):
             row['type'] = 'photo'
             row['mime_type'] = 'image/jpeg'
             media = media.photo
 
-        elif isinstance(media, tl.MessageMediaUnsupported):
+        elif isinstance(media, types.MessageMediaUnsupported):
             row['type'] = 'unsupported'
             return
 
-        elif isinstance(media, tl.MessageMediaVenue):
+        elif isinstance(media, types.MessageMediaVenue):
             row['type'] = 'venue'
             row['name'] = '{} - {} ({}, {} {})'.format(
                 media.title, media.address,
                 media.provider, media.venue_id, media.venue_type
             )
             geo = media.geo
-            if isinstance(geo, tl.GeoPoint):
+            if isinstance(geo, types.GeoPoint):
                 row['name'] += ' at ({}, {})'.format(
                     repr(geo.lat), repr(geo.long)
                 )
 
-        elif isinstance(media, tl.MessageMediaWebPage):
+        elif isinstance(media, types.MessageMediaWebPage):
             row['type'] = 'webpage'
             web = media.webpage
-            if isinstance(web, tl.WebPage):
+            if isinstance(web, types.WebPage):
                 row['name'] = web.title
                 row['thumbnail_id'] = self.dump_media(web.photo, 'thumbnail')
                 row['local_id'] = web.id
                 row['secret'] = web.hash
 
-        if isinstance(media, tl.Photo):
+        if isinstance(media, types.Photo):
             # Extra fallback cases for common parts
             row['type'] = 'photo'
             row['mime_type'] = 'image/jpeg'
             row['name'] = str(media.date)
             sizes = [x for x in media.sizes
-                     if isinstance(x, (tl.PhotoSize, tl.PhotoCachedSize))]
+                     if isinstance(x, (types.PhotoSize, types.PhotoCachedSize))]
             if sizes:
                 small = min(sizes, key=lambda s: s.w * s.h)
                 large = max(sizes, key=lambda s: s.w * s.h)
@@ -407,13 +407,13 @@ class Dumper:
                 if small != large:
                     row['thumbnail_id'] = self.dump_media(small, 'thumbnail')
 
-        if isinstance(media, (tl.PhotoSize, tl.PhotoCachedSize)):
+        if isinstance(media, (types.PhotoSize, types.PhotoCachedSize)):
             row['type'] = 'photo'
             row['mime_type'] = 'image/jpeg'
-            if isinstance(media.location, tl.FileLocation):
+            if isinstance(media.location, types.FileLocation):
                 media = media.location
 
-        if isinstance(media, (tl.UserProfilePhoto, tl.ChatPhoto)):
+        if isinstance(media, (types.UserProfilePhoto, types.ChatPhoto)):
             row['type'] = 'photo'
             row['mime_type'] = 'image/jpeg'
             row['thumbnail_id'] = self.dump_media(
@@ -421,7 +421,7 @@ class Dumper:
             )
             media = media.photo_big
 
-        if isinstance(media, tl.FileLocation):
+        if isinstance(media, types.FileLocation):
             row['local_id'] = media.local_id
             row['volume_id'] = media.volume_id
             row['secret'] = media.secret
@@ -547,14 +547,14 @@ class Dumper:
         c.execute("SELECT * FROM Media WHERE ID = ?",
                   (message_tuple[9],))
         loc = Dumper.location_from_tuple(c.fetchone())
-        if loc == tl.InputFileLocation:
-            media = tl.MessageMediaPhoto(
+        if loc == types.InputFileLocation:
+            media = types.MessageMediaPhoto(
                 caption=message_tuple[4],
-                photo=tl.Photo(
+                photo=types.Photo(
                     id=0,
                     access_hash=0,
                     date=None,
-                    sizes=[tl.PhotoSize(
+                    sizes=[types.PhotoSize(
                         type='',
                         location=loc,
                         w=0,
@@ -563,10 +563,10 @@ class Dumper:
                     )]
                 )
             )
-        elif loc == tl.InputDocumentFileLocation:
-            media = tl.MessageMediaDocument(
+        elif loc == types.InputDocumentFileLocation:
+            media = types.MessageMediaDocument(
                 caption=message_tuple[4],
-                document=tl.Document(
+                document=types.Document(
                     id=loc.id,
                     access_hash=loc.access_hash,
                     version=loc.version,
@@ -583,7 +583,7 @@ class Dumper:
 
         # ContextID often matches with to_id, except for incoming PMs
         to_id, to_type = resolve_id(message_tuple[1])
-        return tl.Message(
+        return types.Message(
             id=message_tuple[0],
             to_id=to_type(to_id),
             date=datetime.fromtimestamp(message_tuple[2]),
@@ -601,7 +601,7 @@ class Dumper:
         if not fwd_tuple:
             return
 
-        return tl.MessageFwdHeader(
+        return types.MessageFwdHeader(
             date=datetime.fromtimestamp(fwd_tuple[1]),
             from_id=fwd_tuple[2],
             channel_post=fwd_tuple[3],
@@ -614,13 +614,13 @@ class Dumper:
             return
 
         if loc_tuple[4] == InputFileType.NORMAL.value:
-            return tl.InputFileLocation(
+            return types.InputFileLocation(
                 local_id=loc_tuple[1],
                 volume_id=loc_tuple[2],
                 secret=loc_tuple[3]
             )
         elif loc_tuple[4] == InputFileType.DOCUMENT.value:
-            return tl.InputDocumentFileLocation(
+            return types.InputDocumentFileLocation(
                 id=loc_tuple[1],
                 version=loc_tuple[2],
                 access_hash=loc_tuple[3]

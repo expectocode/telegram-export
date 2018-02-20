@@ -4,26 +4,26 @@ import os
 from time import sleep
 
 from telethon.extensions import BinaryReader
-from telethon.tl import types as tl, functions as rpc
+from telethon.tl import types, functions
 from telethon.utils import get_peer_id, resolve_id
 
 __log__ = logging.getLogger(__name__)
 
 
 def download_media(client, msg, target_id):
-    if isinstance(msg, tl.Message):
+    if isinstance(msg, types.Message):
         media = msg.media
     else:
         media = msg
     os.makedirs('usermedia', exist_ok=True)
     file_name_prefix = 'usermedia/{}-{}-'.format(target_id, msg.id)
-    if isinstance(media, tl.MessageMediaDocument) and not hasattr(media.document, 'stickerset'):
+    if isinstance(media, types.MessageMediaDocument) and not hasattr(media.document, 'stickerset'):
         file_name = file_name_prefix + next(
             a for a in media.document.attributes
-            if isinstance(a, tl.DocumentAttributeFilename)
+            if isinstance(a, types.DocumentAttributeFilename)
         ).file_name
         return client.download_media(media, file=file_name)
-    elif isinstance(media, tl.MessageMediaPhoto):
+    elif isinstance(media, types.MessageMediaPhoto):
         file_name = file_name_prefix + media.photo.date.strftime('photo_%Y-%m-%d_%H-%M-%S.jpg')
         return client.download_media(media, file=file_name)
     else:
@@ -32,7 +32,7 @@ def download_media(client, msg, target_id):
 
 def save_messages(client, dumper, target):
     target = client.get_input_entity(target)
-    req = rpc.messages.GetHistoryRequest(
+    req = functions.messages.GetHistoryRequest(
         peer=target,
         offset_id=0,
         offset_date=None,
@@ -44,7 +44,7 @@ def save_messages(client, dumper, target):
     )
     __log__.info('Starting dump with %s', target)
     chunks_left = dumper.max_chunks
-    if isinstance(target, tl.InputPeerSelf):
+    if isinstance(target, types.InputPeerSelf):
         target_id = client.get_me().id
     else:
         target_id = get_peer_id(target)
@@ -62,7 +62,7 @@ def save_messages(client, dumper, target):
         entities.update({get_peer_id(u): u for u in history.users})
 
         for m in history.messages:
-            if isinstance(m, tl.Message):
+            if isinstance(m, types.Message):
                 if m.media:
                     download_media(client, msg=m, target_id=target_id)
                 fwd_id = dumper.dump_forward(m.fwd_from)
@@ -70,7 +70,7 @@ def save_messages(client, dumper, target):
                 dumper.dump_message(m, target_id,
                                     forward_id=fwd_id, media_id=media_id)
 
-            elif isinstance(m, tl.MessageService):
+            elif isinstance(m, types.MessageService):
                 dumper.dump_message_service(m, media_id=None)
 
             else:
@@ -126,27 +126,27 @@ def save_messages(client, dumper, target):
     # TODO Save their profile picture
     for mid, entity in entities.items():
         eid, etype = resolve_id(mid)
-        if etype == tl.PeerUser:
+        if etype == types.PeerUser:
             if entity.deleted or entity.min:
                 continue
                 # Otherwise, the empty first name causes an IntegrityError
-            full_user = client(rpc.users.GetFullUserRequest(entity))
+            full_user = client(functions.users.GetFullUserRequest(entity))
             sleep(1)
             photo_id = dumper.dump_media(full_user.profile_photo)
             dumper.dump_user(full_user, photo_id=photo_id)
 
-        elif etype == tl.PeerChat:
-            if isinstance(entity, tl.Chat):
+        elif etype == types.PeerChat:
+            if isinstance(entity, types.Chat):
                 photo_id = dumper.dump_media(entity.photo)
             else:
                 photo_id = None
             dumper.dump_chat(entity, photo_id=photo_id)
 
-        elif etype == tl.PeerChannel:
+        elif etype == types.PeerChannel:
             if hasattr(entity, 'left') and entity.left:
                 continue
-            full = client(rpc.channels.GetFullChannelRequest(entity))
-            assert isinstance(full, tl.messages.ChatFull)
+            full = client(functions.channels.GetFullChannelRequest(entity))
+            assert isinstance(full, types.messages.ChatFull)
             sleep(1)
             photo_id = dumper.dump_media(full.full_chat.chat_photo)
             if entity.megagroup:
