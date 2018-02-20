@@ -8,7 +8,8 @@ from dumper import Dumper
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.ERROR)
+    level=logging.DEBUG)
+logging.getLogger('telethon').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -33,12 +34,8 @@ def main():
 
     client = TelegramClient(
         config['SessionName'], config['ApiId'], config['ApiHash']
-    )
+    ).start(config['PhoneNumber'])
     try:
-        client.connect()
-        if not client.is_user_authorized():
-            client.start(config['PhoneNumber'])
-
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
             entities = downloader.load_entities_from_str(
