@@ -10,6 +10,55 @@ from telethon.utils import get_peer_id, resolve_id
 __log__ = logging.getLogger(__name__)
 
 
+VALID_TYPES = {
+    'photo', 'document', 'video', 'audio', 'sticker', 'voice'
+}
+
+
+def check_media(whitelist, media):
+    """
+    Checks whether the given MessageMedia should be downloaded or not.
+    """
+    # TODO This is probably not the cleanest way but we need to check
+    # for attributes and their "friendly" name (with some cases like
+    # audio attributes having further specific types).
+    if not whitelist:
+        return True
+
+    if isinstance(media, types.MessageMediaPhoto):
+        if 'photo' not in whitelist:
+            return False
+    elif isinstance(media, types.MessageMediaDocument):
+        if not isinstance(media, types.Document):
+            return False
+        for attr in media.attributes:
+            if isinstance(attr, types.DocumentAttributeSticker):
+                if 'sticker' in whitelist:
+                    break
+                else:
+                    return False
+            elif isinstance(attr, types.DocumentAttributeVideo):
+                if 'video' in whitelist:
+                    break
+                else:
+                    return False
+            elif isinstance(attr, types.DocumentAttributeAudio):
+                if attr.voice:
+                    if 'voice' in whitelist:
+                        break
+                    else:
+                        return False
+                else:
+                    if 'audio' in whitelist:
+                        break
+                    else:
+                        return False
+        else:
+            if 'document' not in whitelist:
+                return False
+    return True
+
+
 def download_media(client, msg, target_id):
     if isinstance(msg, types.Message):
         media = msg.media
@@ -32,6 +81,11 @@ def download_media(client, msg, target_id):
 
 def save_messages(client, dumper, target, config):
     max_size = int(config['MaxSize'])
+    whitelist = {x.strip().lower()
+                 for x in (config.get('MediaWhitelist') or '').split(',')
+                 if x.strip()}
+    assert all(x in VALID_TYPES for x in whitelist)
+
     target = client.get_input_entity(target)
     req = functions.messages.GetHistoryRequest(
         peer=target,
@@ -64,9 +118,9 @@ def save_messages(client, dumper, target, config):
 
         for m in history.messages:
             if isinstance(m, types.Message):
-                # TODO Actually respect config['MediaWhitelist']
                 if (max_size
                     and m.media
+                    and check_media(whitelist, m.media)
                     and (not isinstance(m.media, types.MessageMediaDocument)
                          or m.media.document.size <= max_size)):
                     download_media(client, msg=m, target_id=target_id)

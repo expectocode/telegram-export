@@ -42,7 +42,8 @@ Whitelist = example, username
 [Downloader]
 
 # The file types to download, comma separated. Options are:
-# "photo", "document", "video", "audio", "sticker", "voice"
+# "photo", "document", "video", "audio", "sticker", "voice".
+# An empty list (default if omitted) means all are allowed.
 ; MediaWhitelist = photo, sticker
 MediaWhitelist = photo, sticker
 
