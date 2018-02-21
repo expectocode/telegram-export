@@ -4,8 +4,8 @@ import re
 
 from telethon import TelegramClient, utils
 
-import downloader
 from dumper import Dumper
+from downloader import Downloader
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -43,38 +43,35 @@ def load_config():
 def main():
     config = load_config()
     dumper = Dumper(config['Dumper'])
-    dl_config = config['Downloader']
-    config = config['TelegramAPI']
-    cache_file = config['SessionName'] + '.tl'
-
     client = TelegramClient(
         config['SessionName'], config['ApiId'], config['ApiHash']
     ).start(config['PhoneNumber'])
+    downloader = Downloader(client, config['Downloader'])
+
+    config = config['TelegramAPI']
+    cache_file = config['SessionName'] + '.tl'
     try:
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
             entities = downloader.load_entities_from_str(
-                client, dumper.config['Whitelist']
+                dumper.config['Whitelist']
             )
             for who in entities:
-                downloader.save_messages(client, dumper, who,
-                                         config=dl_config)
+                downloader.save_messages(dumper, who)
 
         elif 'Blacklist' in dumper.config:
             # May be blacklist, so save the IDs on who to avoid
             entities = downloader.load_entities_from_str(
-                client, dumper.config['Blacklist']
+                dumper.config['Blacklist']
             )
             avoid = set(utils.get_peer_id(x) for x in entities)
-            for entity in downloader.fetch_dialogs(client, cache_file=cache_file):
+            for entity in downloader.fetch_dialogs(cache_file=cache_file):
                 if utils.get_peer_id(entity) not in avoid:
-                    downloader.save_messages(client, dumper, entity,
-                                             config=dl_config)
+                    downloader.save_messages(dumper, entity)
         else:
             # Neither blacklist nor whitelist - get all
             for entity in downloader.fetch_dialogs(client):
-                downloader.save_messages(client, dumper, entity,
-                                         config=dl_config)
+                downloader.save_messages(dumper, entity)
 
     except KeyboardInterrupt:
         pass

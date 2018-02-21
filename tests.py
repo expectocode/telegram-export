@@ -11,7 +11,7 @@ from telethon.errors import (
 )
 from telethon.tl import functions, types
 
-import downloader
+from downloader import Downloader
 from dumper import Dumper
 
 
@@ -84,6 +84,7 @@ class TestDumpAll(unittest.TestCase):
         )
 
         client(functions.messages.DeleteHistoryRequest('me', 0))
+        downloader = Downloader(client, {'MaxSize': 0})
 
         which = 1
         for amount, what in actions:
@@ -97,7 +98,7 @@ class TestDumpAll(unittest.TestCase):
                 print('Dumping', amount, 'messages...')
                 chunks = (amount + dumper.chunk_size - 1) // dumper.chunk_size
                 dumper.max_chunks = chunks
-                downloader.save_messages(client, dumper, 'me')
+                downloader.save_messages(dumper, 'me')
 
         messages = client.get_message_history('me', limit=None)
         print('Full history')
