@@ -30,7 +30,8 @@ def download_media(client, msg, target_id):
         return None
 
 
-def save_messages(client, dumper, target):
+def save_messages(client, dumper, target, config):
+    max_size = int(config['MaxSize'])
     target = client.get_input_entity(target)
     req = functions.messages.GetHistoryRequest(
         peer=target,
@@ -63,8 +64,13 @@ def save_messages(client, dumper, target):
 
         for m in history.messages:
             if isinstance(m, types.Message):
-                #if m.media:
-                #    download_media(client, msg=m, target_id=target_id)
+                # TODO Actually respect config['MediaWhitelist']
+                if (max_size
+                    and m.media
+                    and (not isinstance(m.media, types.MessageMediaDocument)
+                         or m.media.document.size <= max_size)):
+                    download_media(client, msg=m, target_id=target_id)
+
                 fwd_id = dumper.dump_forward(m.fwd_from)
                 media_id = dumper.dump_media(m.media)
                 dumper.dump_message(m, target_id,

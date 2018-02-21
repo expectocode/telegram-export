@@ -38,3 +38,19 @@ Whitelist = example, username
 
 # Maximum chunks to retrieve from a chat (if too many). 0 (default) means all.
 ; MaxChunks = 0
+
+[Downloader]
+
+# The file types to download, comma separated. Options are:
+# "photo", "document", "video", "audio", "sticker", "voice"
+; MediaWhitelist = photo, sticker
+MediaWhitelist = photo, sticker
+
+# The maximum allowed file size for a document before skipping it.
+# For instance, "800KB" will only download files smaller or equal to 800KB.
+# Allowed prefixes are "B", "KB", "MB" and "GB" (floating point allowed).
+#
+# No prefix defaults to "MB". Setting to "0"  will not download any media.
+# Note that this only applies to documents (everything but normal photos).
+; MaxSize = 1MB
+MaxSize = 1MB
