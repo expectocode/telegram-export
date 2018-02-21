@@ -155,6 +155,8 @@ def save_messages(client, dumper, target):
             else:
                 dumper.dump_channel(full.full_chat, entity, photo_id=photo_id)
 
+        dumper.commit()
+
     __log__.info('Dump with %s finished', target)
 
 
