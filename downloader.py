@@ -33,9 +33,6 @@ class Downloader:
         if not self.types:
             return True
 
-        # TODO This is probably not the cleanest way but we need to check
-        # for attributes and their "friendly" name (with some cases like
-        # audio attributes having further specific types).
         if isinstance(media, types.MessageMediaPhoto):
             if 'photo' not in self.types:
                 return False
@@ -44,26 +41,14 @@ class Downloader:
                 return False
             for attr in media.attributes:
                 if isinstance(attr, types.DocumentAttributeSticker):
-                    if 'sticker' in self.types:
-                        break
-                    else:
-                        return False
+                    return 'sticker' in self.types
                 elif isinstance(attr, types.DocumentAttributeVideo):
-                    if 'video' in self.types:
-                        break
-                    else:
-                        return False
+                    return 'video' in self.types
                 elif isinstance(attr, types.DocumentAttributeAudio):
                     if attr.voice:
-                        if 'voice' in self.types:
-                            break
-                        else:
-                            return False
+                        return 'voice' in self.types
                     else:
-                        if 'audio' in self.types:
-                            break
-                        else:
-                            return False
+                        return 'audio' in self.types
             else:
                 if 'document' not in self.types:
                     return False
