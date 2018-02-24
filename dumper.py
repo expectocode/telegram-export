@@ -9,7 +9,7 @@ from datetime import datetime
 from enum import Enum
 
 from telethon.tl import types
-from telethon.utils import resolve_id
+from telethon.utils import resolve_id, get_peer_id
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class Dumper:
         # Need to get the full object too for 'about' info
         timestamp = round(time.time())
         return self._insert('Channel',
-                            (channel.id,
+                            (get_peer_id(channel),
                              timestamp,
                              channel_full.about,
                              channel.title,
@@ -275,7 +275,7 @@ class Dumper:
         # Need to get the full object too for 'about' info
         timestamp = round(time.time())
         return self._insert('Supergroup',
-                            (supergroup.id,
+                            (get_peer_id(supergroup),
                              timestamp,
                              supergroup_full.about if hasattr(supergroup_full, 'about') else '',
                              supergroup.title,
@@ -295,7 +295,7 @@ class Dumper:
         else:
             migrated_to_id = None
         return self._insert('Chat',
-                            (chat.id,
+                            (get_peer_id(chat),
                              timestamp,
                              chat.title,
                              migrated_to_id,
