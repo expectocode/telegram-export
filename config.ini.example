@@ -14,7 +14,7 @@ ApiHash = 0123456789abcdef0123456789abcdef
 ; SessionName = exporter
 SessionName = exporter
 
-# Your phone number. You must supply this.
+# Your phone number. You must supply this. Should start with +country code eg +44.
 PhoneNumber = xxxxxxxxxx
 
 [Dumper]
@@ -31,6 +31,10 @@ ForceNoChangeDumpAfter = 7200
 # * Whitelist will backup only the usernames, phones or IDs listed.
 # * Blacklist will backup everything but listed.
 # Phones start with '+' (no quotes), and items separated by comma.
+# It's usually  a good idea to set a whitelist, as otherwise you will have
+# to wait for lots of dialogs you don't care about to be downloaded. You can
+# get a list of dialogs and their associated IDs by running
+# `telegram-export.py --list-dialogs`
 Whitelist = example, username
 
 # Chunk size in which to retrieve messages. 100 (default, max) if not present.
@@ -49,9 +53,9 @@ MediaWhitelist = photo, sticker
 
 # The maximum allowed file size for a document before skipping it.
 # For instance, "800KB" will only download files smaller or equal to 800KB.
-# Allowed prefixes are "B", "KB", "MB" and "GB" (floating point allowed).
+# Allowed units are "B", "KB", "MB" and "GB" (floating point allowed).
 #
-# No prefix defaults to "MB". Setting to "0"  will not download any media.
+# No unit defaults to "MB". Setting to "0"  will not download any media.
 # Note that this only applies to documents (everything but normal photos).
 ; MaxSize = 1MB
 MaxSize = 1MB

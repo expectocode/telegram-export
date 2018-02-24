@@ -1,6 +1,8 @@
+#!/usr/bin/env python3
 import configparser
 import logging
 import re
+import argparse
 
 from telethon import TelegramClient, utils
 
@@ -40,14 +42,33 @@ def load_config():
     return config
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Export Telegram data")
+    parser.add_argument('--list-dialogs', action='store_true')
+    return parser.parse_args()
+
+
+def print_dialogs(client):
+    for dialog in client.get_dialogs(limit=None)[::-1]:  # Oldest to newest
+        ent = dialog.entity
+        try:
+            username = '@' + ent.username
+        except (AttributeError, TypeError):  # If no username or it is None
+            username = '<no username>'
+        print('{} | {} | {}'.format(ent.id, username, dialog.name))
+
+
 def main():
+    args = parse_args()
     config = load_config()
-    dumper = Dumper(config['Dumper'])
     client = TelegramClient(
         config['TelegramAPI']['SessionName'], config['TelegramAPI']['ApiId'], config['TelegramAPI']['ApiHash']
     ).start(config['TelegramAPI']['PhoneNumber'])
+    if args.list_dialogs:
+        print_dialogs(client)
+        return
     downloader = Downloader(client, config['Downloader'])
-
+    dumper = Dumper(config['Dumper'])
     config = config['TelegramAPI']
     cache_file = config['SessionName'] + '.tl'
     try:
