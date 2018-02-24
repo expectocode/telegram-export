@@ -70,7 +70,7 @@ def main():
                     downloader.save_messages(dumper, entity)
         else:
             # Neither blacklist nor whitelist - get all
-            for entity in downloader.fetch_dialogs(client):
+            for entity in downloader.fetch_dialogs(cache_file=cache_file):
                 downloader.save_messages(dumper, entity)
 
     except KeyboardInterrupt:
