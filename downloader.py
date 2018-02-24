@@ -19,7 +19,7 @@ class Downloader:
     def __init__(self, client, config):
         self.client = client
         self.max_size = int(config['MaxSize'])
-        self.types= {x.strip().lower()
+        self.types = {x.strip().lower()
                      for x in (config.get('MediaWhitelist') or '').split(',')
                      if x.strip()}
         assert all(x in VALID_TYPES for x in self.types)
@@ -47,28 +47,30 @@ class Downloader:
                 elif isinstance(attr, types.DocumentAttributeAudio):
                     if attr.voice:
                         return 'voice' in self.types
-                    else:
-                        return 'audio' in self.types
-            else:
-                if 'document' not in self.types:
-                    return False
+                    return 'audio' in self.types
+            if 'document' not in self.types:
+                return False
         return True
 
     def download_media(self, msg, target_id):
+        """Save media to disk, under the usermedia/ folder."""
+        # TODO Make usermedia/ folder an config option
+        # TODO Make name format string a config option
         if isinstance(msg, types.Message):
             media = msg.media
         else:
             media = msg
         os.makedirs('usermedia', exist_ok=True)
         file_name_prefix = 'usermedia/{}-{}-'.format(target_id, msg.id)
-        if isinstance(media, types.MessageMediaDocument) and not hasattr(media.document, 'stickerset'):
+        if isinstance(media, types.MessageMediaDocument) and not hasattr(
+                media.document, 'stickerset'):
             try:
                 file_name = file_name_prefix + next(
                     a for a in media.document.attributes
                     if isinstance(a, types.DocumentAttributeFilename)
                 ).file_name
             except StopIteration:
-                file_name = 'usermedia/'  # Inferred by the library
+                file_name = 'usermedia/'  # Inferred by Telethon
             return self.client.download_media(msg, file=file_name)
         elif isinstance(media, types.MessageMediaPhoto):
             file_name = file_name_prefix + media.photo.date.strftime('photo_%Y-%m-%d_%H-%M-%S.jpg')
@@ -77,6 +79,10 @@ class Downloader:
             return None
 
     def save_messages(self, dumper, target_id):
+        """
+        Download and dump messages and media (depending on media config)
+        from the target using the dumper, then dump all entities found.
+        """
         target = self.client.get_input_entity(target_id)
         req = functions.messages.GetHistoryRequest(
             peer=target,
@@ -191,7 +197,7 @@ class Downloader:
 
             elif etype == types.PeerChannel:
                 if hasattr(entity, 'left') and entity.left:
-                    continue
+                    continue  # TODO why? Could be good data
                 full = self.client(functions.channels.GetFullChannelRequest(entity))
                 assert isinstance(full, types.messages.ChatFull)
                 sleep(1)
@@ -207,6 +213,8 @@ class Downloader:
         __log__.info('Dump with %s finished', target)
 
     def fetch_dialogs(self, cache_file='dialogs.tl', force=False):
+        """Get a list of dialogs, and dump new data from them"""
+        # TODO What to do about cache invalidation?
         if not force and os.path.isfile(cache_file):
             with open(cache_file, 'rb') as f, BinaryReader(stream=f) as reader:
                 entities = []
@@ -224,6 +232,7 @@ class Downloader:
         return entities
 
     def load_entities_from_str(self, string):
+        """Helper function to load entities from the config file"""
         for who in string.split(','):
             who = who.strip()
             if (not who.startswith('+') and who.isdigit()) or who.startswith('-'):
