@@ -62,11 +62,14 @@ class Downloader:
         os.makedirs('usermedia', exist_ok=True)
         file_name_prefix = 'usermedia/{}-{}-'.format(target_id, msg.id)
         if isinstance(media, types.MessageMediaDocument) and not hasattr(media.document, 'stickerset'):
-            file_name = file_name_prefix + next(
-                a for a in media.document.attributes
-                if isinstance(a, types.DocumentAttributeFilename)
-            ).file_name
-            return self.client.download_media(media, file=file_name)
+            try:
+                file_name = file_name_prefix + next(
+                    a for a in media.document.attributes
+                    if isinstance(a, types.DocumentAttributeFilename)
+                ).file_name
+            except StopIteration:
+                file_name = 'usermedia/'  # Inferred by the library
+            return self.client.download_media(msg, file=file_name)
         elif isinstance(media, types.MessageMediaPhoto):
             file_name = file_name_prefix + media.photo.date.strftime('photo_%Y-%m-%d_%H-%M-%S.jpg')
             return self.client.download_media(media, file=file_name)
