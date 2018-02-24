@@ -60,11 +60,7 @@ def print_dialogs(client):
             username = '@' + ent.username
         except (AttributeError, TypeError):  # If no username or it is None
             username = '<no username>'
-        if isinstance(ent, Channel):
-            contextid = '-100{}'.format(ent.id)
-        else:
-            contextid = ent.id
-        print('{} | {} | {}'.format(contextid, username, dialog.name))
+        print('{} | {} | {}'.format(utils.get_peer_id(ent), username, dialog.name))
 
 
 def main():
