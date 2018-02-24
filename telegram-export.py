@@ -45,9 +45,11 @@ def load_config(filename):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Export Telegram data")
-    parser.add_argument('--list-dialogs', action='store_true')
-    parser.add_argument('--config-file', default='config.ini')
+    parser = argparse.ArgumentParser(description="export Telegram data")
+    parser.add_argument('--list-dialogs', action='store_true',
+                        help='list dialogs and exit')
+    parser.add_argument('--config-file', default='config.ini',
+                        help='specify a config file. Default config.ini')
     return parser.parse_args()
 
 
