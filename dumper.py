@@ -78,6 +78,7 @@ class Dumper:
         else:
             # Tables don't exist, create new ones
             c.execute("CREATE TABLE Version (Version INTEGER)")
+            c.execute("CREATE TABLE SelfInformation (UserID INTEGER)")
             c.execute("INSERT INTO Version VALUES (?)", (DB_VERSION,))
 
             c.execute("CREATE TABLE Forward("
@@ -135,6 +136,7 @@ class Dumper:
                       "Title TEXT NOT NULL,"
                       "Username TEXT,"
                       "PictureID INT,"
+                      "PinMessageID INT,"
                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
                       "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
@@ -146,6 +148,7 @@ class Dumper:
                       "Title TEXT NOT NULL,"
                       "Username TEXT,"
                       "PictureID INT,"
+                      "PinMessageID INT,"
                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
                       "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
@@ -260,7 +263,8 @@ class Dumper:
                              channel_full.about,
                              channel.title,
                              channel.username,
-                             photo_id)
+                             photo_id,
+                             channel_full.pinned_msg_id)
                             )
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id):
@@ -276,7 +280,8 @@ class Dumper:
                              supergroup_full.about if hasattr(supergroup_full, 'about') else '',
                              supergroup.title,
                              supergroup.username,
-                             photo_id)
+                             photo_id,
+                             supergroup_full.pinned_msg_id)
                             )
 
     def dump_chat(self, chat, photo_id):
