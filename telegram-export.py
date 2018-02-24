@@ -5,6 +5,7 @@ import re
 import argparse
 
 from telethon import TelegramClient, utils
+from telethon.tl.types import Channel
 
 from dumper import Dumper
 from downloader import Downloader
@@ -55,7 +56,11 @@ def print_dialogs(client):
             username = '@' + ent.username
         except (AttributeError, TypeError):  # If no username or it is None
             username = '<no username>'
-        print('{} | {} | {}'.format(ent.id, username, dialog.name))
+        if isinstance(ent, Channel):
+            contextid = '-100{}'.format(ent.id)
+        else:
+            contextid = ent.id
+        print('{} | {} | {}'.format(contextid, username, dialog.name))
 
 
 def main():
