@@ -2,6 +2,7 @@
 ---------------
 
 **Database schema:**
+
 ![Schema image](/schema.png)
 
 # Usage
