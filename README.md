@@ -4,6 +4,9 @@
 **Database schema:**
 ![Schema image](/schema.png)
 
+# Usage
+
+First, copy config.ini.example to config.ini and edit some values. To write your whitelist, you may want to refer to the output of `./telegram-export --list-dialogs` to get dialog IDs. Then run `./telegram-export` and allow it to dump data.
 
 # telegram-export vs telegram-history-dump
 
@@ -25,4 +28,4 @@
 
  - Certain information is not dumped for simplicity's sake. For example, edited messages won't be re-downloaded and there is currently no support for multiple versions of a message in the db.
 
- - You cannot use the program as multiple users - it assumes that everything is from the 'viewpoint' of the same user. An easy workaround is to use a different database for each user.
+ - You cannot use the program as multiple users - it assumes that everything is from the 'viewpoint' of the same user. An easy workaround is to use a different database for each user, which can be achieved by using several config files and the --config-file option of the main program.

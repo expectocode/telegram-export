@@ -10,6 +10,7 @@ from telethon.tl.types import Channel
 from dumper import Dumper
 from downloader import Downloader
 
+# TODO make log level a config option
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.DEBUG)
@@ -18,10 +19,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def load_config():
+def load_config(filename):
     # Load from file
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(filename)
 
     # Convert minutes to seconds
     config['Dumper']['ForceNoChangeDumpAfter'] = str(
@@ -46,6 +47,7 @@ def load_config():
 def parse_args():
     parser = argparse.ArgumentParser(description="Export Telegram data")
     parser.add_argument('--list-dialogs', action='store_true')
+    parser.add_argument('--config-file', default='config.ini')
     return parser.parse_args()
 
 
@@ -65,7 +67,7 @@ def print_dialogs(client):
 
 def main():
     args = parse_args()
-    config = load_config()
+    config = load_config(args.config_file)
     client = TelegramClient(
         config['TelegramAPI']['SessionName'], config['TelegramAPI']['ApiId'], config['TelegramAPI']['ApiHash']
     ).start(config['TelegramAPI']['PhoneNumber'])

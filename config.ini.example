@@ -1,4 +1,5 @@
 # Configuration file for telegram-export. Default values are commented.
+# This file should be copied to config.ini and edited.
 # Use ; or # for comment lines
 
 [TelegramAPI]
