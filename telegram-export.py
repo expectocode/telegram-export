@@ -78,6 +78,10 @@ def main():
         return
     downloader = Downloader(client, config['Downloader'])
     dumper = Dumper(config['Dumper'])
+    with dumper.conn:
+        dumper.conn.execute(
+                "INSERT INTO SelfInformation VALUES (?)",
+                (client.get_me(input_peer=True).user_id,))
     config = config['TelegramAPI']
     cache_file = config['SessionName'] + '.tl'
     try:
