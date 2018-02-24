@@ -290,11 +290,15 @@ class Dumper:
         Params: Chat to dump, MediaID of the profile photo in the DB
         Returns -"""
         timestamp = round(time.time())
+        if isinstance(chat.migrated_to, types.InputChannel):
+            migrated_to_id = chat.migrated_to.channel_id
+        else:
+            migrated_to_id = None
         return self._insert('Chat',
                             (chat.id,
                              timestamp,
                              chat.title,
-                             chat.migrated_to,
+                             migrated_to_id,
                              photo_id)
                             )
 
