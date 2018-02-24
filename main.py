@@ -44,8 +44,8 @@ def main():
     config = load_config()
     dumper = Dumper(config['Dumper'])
     client = TelegramClient(
-        config['SessionName'], config['ApiId'], config['ApiHash']
-    ).start(config['PhoneNumber'])
+        config['TelegramAPI']['SessionName'], config['TelegramAPI']['ApiId'], config['TelegramAPI']['ApiHash']
+    ).start(config['TelegramAPI']['PhoneNumber'])
     downloader = Downloader(client, config['Downloader'])
 
     config = config['TelegramAPI']
