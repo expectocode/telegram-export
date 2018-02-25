@@ -233,7 +233,7 @@ class TestDumpAll(unittest.TestCase):
         dumper.dump_supergroup(channel_full, channel, photo_id=None)
         dumper.dump_channel(channel_full, channel, photo_id=None)
 
-    def test_formatter_methods(self):
+    def test_formatter_get_chat(self):
         """
         Ensures that the BaseFormatter is able to fetch the expected
         entities when using a date parameter.
@@ -269,6 +269,54 @@ class TestDumpAll(unittest.TestCase):
         target = int(datetime(year=2009, month=12, day=1).timestamp())
         date = fmt.get_chat(cid, target).date_updated
         assert date == int(datetime(year=2010, month=1, day=1).timestamp())
+
+    def test_formatter_get_messages(self):
+        """
+        Ensures that the BaseFormatter is able to correctly yield messages.
+        """
+        dumper = Dumper({'DBFileName': ':memory:'})
+        dumper.conn.execute("INSERT INTO SelfInformation VALUES (?)", (123,))
+        msg = types.Message(
+            id=1,
+            to_id=123,
+            date=datetime(year=2010, month=1, day=1),
+            message='hi'
+        )
+        for _ in range(365):
+            dumper.dump_message(msg, 123, forward_id=None, media_id=None)
+            msg.id += 1
+            msg.date += timedelta(days=1)
+            msg.to_id = 300 - msg.to_id  # Flip between two IDs
+        dumper.commit()
+        fmt = BaseFormatter(dumper.conn)
+
+        # Assert all messages are returned
+        assert len(list(fmt.get_messages_from_context(123))) == 365
+
+        # Assert only messages after a date are returned
+        min_date = int(datetime(year=2010, month=4, day=1).timestamp())
+        assert all(m.date >= min_date for m in fmt.get_messages_from_context(
+            123, start_date=min_date
+        ))
+
+        # Assert only messages before a date are returned
+        max_date = int(datetime(year=2010, month=4, day=1).timestamp())
+        assert all(m.date <= max_date for m in fmt.get_messages_from_context(
+            123, end_date=max_date
+        ))
+
+        # Assert messages are returned in a range
+        assert all(min_date <= m.date <= max_date for m in
+                   fmt.get_messages_from_context(
+                       123, start_date=min_date, end_date=max_date
+                   ))
+
+        # Assert messages are returned in the correct order
+        desc = list(fmt.get_messages_from_context(123, order='DESC'))
+        assert all(desc[i - 1] > desc[i] for i in range(1, len(desc)))
+
+        asc = list(fmt.get_messages_from_context(123, order='ASC'))
+        assert all(asc[i - 1] < asc[i] for i in range(1, len(asc)))
 
 
 if __name__ == '__main__':
