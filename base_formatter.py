@@ -26,7 +26,7 @@ class BaseFormatter:
     of named tuples.
     """
     def __init__(self, db_name):
-        self.dbconn = sqlite3.connect(db_name)
+        self.dbconn = sqlite3.connect('file:{}?mode=ro'.format(db_name), uri=True)
         self.our_userid = self.dbconn.execute(
             "SELECT UserID FROM SelfInformation").fetchone()[0]
 
@@ -69,10 +69,14 @@ class BaseFormatter:
                             (context_id, end_date, start_date, from_user_id))
 
         row = cur.fetchone()
+        if not row:
+            raise StopIteration
         out = self.our_userid == row[3]
         while row:
             yield Message(*row, out)
             row = cur.fetchone()
+            if not row:
+                raise StopIteration
             out = self.our_userid == row[3]
 
     def get_user(self, uid, at_date=None):
