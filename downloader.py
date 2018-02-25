@@ -184,7 +184,7 @@ class Downloader:
                     continue
                     # Otherwise, the empty first name causes an IntegrityError
                 full_user = self.client(functions.users.GetFullUserRequest(entity))
-                sleep(1)
+                sleep(0.5)
                 photo_id = dumper.dump_media(full_user.profile_photo)
                 dumper.dump_user(full_user, photo_id=photo_id)
 
@@ -200,7 +200,7 @@ class Downloader:
                     continue  # TODO why? Could be good data
                 full = self.client(functions.channels.GetFullChannelRequest(entity))
                 assert isinstance(full, types.messages.ChatFull)
-                sleep(1)
+                sleep(0.5)
                 photo_id = dumper.dump_media(full.full_chat.chat_photo)
                 # TODO Maybe just pass messages.ChatFull to dumper...
                 if entity.megagroup:

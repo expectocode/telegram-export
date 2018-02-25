@@ -53,8 +53,8 @@ def parse_args():
     parser.add_argument('--list-dialogs', action='store_true',
                         help='list dialogs and exit')
 
-    parser.add_argument('--search', type=str,
-                        help='searches for a dialog via name/username/phone')
+    parser.add_argument('--search-dialogs', type=str, dest='search_string',
+                        help='like --list-dialogs but searches for a dialog by name/username/phone')
 
     parser.add_argument('--config-file', default='config.ini',
                         help='specify a config file. Default config.ini')
@@ -79,12 +79,18 @@ def find_fmt_dialog_padding(dialogs):
     )
 
 
-def find_dialog(dialogs, query, top=5, threshold=0.5):
+def find_dialog(dialogs, query, top=25, threshold=0.7):
     seq = difflib.SequenceMatcher(b=query, autojunk=False)
     scores = []
-    for dialog in dialogs:
+    for index, dialog in enumerate(dialogs):
         seq.set_seq1(dialog.name)
         name_score = seq.ratio()
+        if query.lower() in dialog.name.lower():
+            # If query is a substring of the name, make it a good match.
+            # Slightly boost dialogs which were recently active, so not
+            # all substring-matched dialogs have exactly the same score.
+            boost = (index/len(dialogs))/25
+            name_score = max(name_score, 0.75 + boost)
         if getattr(dialog.entity, 'username', None):
             seq.set_seq1(dialog.entity.username)
             username_score = seq.ratio()
@@ -98,32 +104,40 @@ def find_dialog(dialogs, query, top=5, threshold=0.5):
 
         scores.append((dialog, max(name_score, username_score, phone_score)))
     scores.sort(key=lambda t: t[1], reverse=True)
-    return tuple(score[0] for score in scores[:top] if score[1] > threshold)
+    matches = tuple(score[0] for score in scores if score[1] > threshold)
+    num_not_shown = 0 if len(matches) <= top else len(matches) - top
+    return matches[:top], num_not_shown
 
 
 def main():
     args = parse_args()
     config = load_config(args.config_file)
     client = TelegramClient(
-        config['TelegramAPI']['SessionName'], config['TelegramAPI']['ApiId'], config['TelegramAPI']['ApiHash']
+        config['TelegramAPI']['SessionName'],
+        config['TelegramAPI']['ApiId'],
+        config['TelegramAPI']['ApiHash']
     ).start(config['TelegramAPI']['PhoneNumber'])
 
-    if args.list_dialogs or args.search:
+    if args.list_dialogs or args.search_string:
         dialogs = client.get_dialogs(limit=None)[::-1]  # Oldest to newest
         if args.list_dialogs:
             id_pad, username_pad = find_fmt_dialog_padding(dialogs)
             for dialog in dialogs:
                 print(fmt_dialog(dialog, id_pad, username_pad))
 
-        if args.search:
-            print('Searching for "{}"...'.format(args.search))
-            found = find_dialog(dialogs, args.search)
+        if args.search_string:
+            print('Searching for "{}"...'.format(args.search_string))
+            found, num_not_shown = find_dialog(dialogs, args.search_string)
             if not found:
-                print('Found no good results with "{}".'.format(args.search))
+                print('Found no good results with "{}".'.format(args.search_string))
             elif len(found) == 1:
                 print('Top match:', fmt_dialog(found[0]), sep='\n')
             else:
-                print('Showing top {} matches:'.format(len(found)))
+                if num_not_shown > 0:
+                    print('Showing top {} matches of {}:'.format(
+                        len(found), len(found) + num_not_shown))
+                else:
+                    print('Showing top {} matches:'.format(len(found)))
                 id_pad, username_pad = find_fmt_dialog_padding(found)
                 for dialog in found:
                     print(fmt_dialog(dialog, id_pad, username_pad))
