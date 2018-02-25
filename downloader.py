@@ -189,6 +189,8 @@ class Downloader:
                 dumper.dump_user(full_user, photo_id=photo_id)
 
             elif etype == types.PeerChat:
+                if isinstance(entity, types.ChatForbidden):
+                    continue
                 if isinstance(entity, types.Chat):
                     photo_id = dumper.dump_media(entity.photo)
                 else:
@@ -198,6 +200,8 @@ class Downloader:
             elif etype == types.PeerChannel:
                 if hasattr(entity, 'left') and entity.left:
                     continue  # TODO why? Could be good data
+                if isinstance(entity, types.ChannelForbidden):
+                    continue
                 full = self.client(functions.channels.GetFullChannelRequest(entity))
                 assert isinstance(full, types.messages.ChatFull)
                 sleep(0.5)
