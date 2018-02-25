@@ -4,20 +4,34 @@ from collections import namedtuple
 import sqlite3
 
 
-Message = namedtuple('Message', ['id', 'context_id', 'date', 'from_id', 'text',
-                                 'reply_message_id', 'forward_id', 'post_author',
-                                 'view_count', 'media_id', 'out'])
-User = namedtuple('User', ['id', 'date_updated', 'first_name', 'last_name',
-                           'username', 'phone', 'bio', 'bot', 'common_chats_count',
-                           'picture_id'])
-Channel = namedtuple('Channel', ['id', 'date_updated', 'about', 'title', 'username',
-                                 'picture_id', 'pin_message_id'])
-Supergroup = namedtuple('Supergroup', ['ID', 'date_updated', 'about', 'title',
-                                       'username', 'picture_id', 'pin_message_id'])
-Chat = namedtuple('Chat', ['id', 'date_updated', 'title', 'migrated_to_id',
-                           'picture_id'])
-Media = namedtuple('Media', ['id', 'name', 'mime_type', 'size', 'thumbnail_id',
-                             'type', 'local_id', 'volume_id', 'secret', 'extra'])
+Message = namedtuple('Message', (
+    'id', 'context_id', 'date', 'from_id', 'text', 'reply_message_id',
+    'forward_id', 'post_author', 'view_count', 'media_id', 'out'
+))
+
+User = namedtuple('User', (
+    'id', 'date_updated', 'first_name', 'last_name', 'username', 'phone',
+    'bio', 'bot', 'common_chats_count', 'picture_id'
+))
+
+Channel = namedtuple('Channel', (
+    'id', 'date_updated', 'about', 'title', 'username', 'picture_id',
+    'pin_message_id'
+))
+
+Supergroup = namedtuple('Supergroup', (
+    'ID', 'date_updated', 'about', 'title', 'username', 'picture_id',
+    'pin_message_id'
+))
+
+Chat = namedtuple('Chat', (
+    'id', 'date_updated', 'title', 'migrated_to_id', 'picture_id'
+))
+
+Media = namedtuple('Media', (
+    'id', 'name', 'mime_type', 'size', 'thumbnail_id', 'type', 'local_id',
+    'volume_id', 'secret', 'extra'
+))
 
 
 class BaseFormatter:
