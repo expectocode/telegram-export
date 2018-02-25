@@ -22,6 +22,8 @@ class Downloader:
         self.types = {x.strip().lower()
                      for x in (config.get('MediaWhitelist') or '').split(',')
                      if x.strip()}
+        self.media_folder = os.path.join(config['OutputDirectory'], 'usermedia')
+        # TODO make 'usermedia' a config option
         assert all(x in VALID_TYPES for x in self.types)
 
     def check_media(self, media):
@@ -53,15 +55,15 @@ class Downloader:
         return True
 
     def download_media(self, msg, target_id):
-        """Save media to disk, under the usermedia/ folder."""
+        """Save media to disk in self.media_folder (under OutputDirectory)."""
         # TODO Make usermedia/ folder an config option
-        # TODO Make name format string a config option
+        # TODO Make name format string a config option, and consider folders per context
         if isinstance(msg, types.Message):
             media = msg.media
         else:
             media = msg
-        os.makedirs('usermedia', exist_ok=True)
-        file_name_prefix = 'usermedia/{}-{}-'.format(target_id, msg.id)
+        os.makedirs(self.media_folder, exist_ok=True)
+        file_name_prefix = os.path.join(self.media_folder,'{}-{}-'.format(target_id, msg.id))
         if isinstance(media, types.MessageMediaDocument) and not hasattr(
                 media.document, 'stickerset'):
             try:
@@ -70,7 +72,7 @@ class Downloader:
                     if isinstance(a, types.DocumentAttributeFilename)
                 ).file_name
             except StopIteration:
-                file_name = 'usermedia/'  # Inferred by Telethon
+                file_name = self.media_folder  # Inferred by Telethon
             return self.client.download_media(msg, file=file_name)
         elif isinstance(media, types.MessageMediaPhoto):
             file_name = file_name_prefix + media.photo.date.strftime('photo_%Y-%m-%d_%H-%M-%S.jpg')

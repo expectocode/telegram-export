@@ -8,6 +8,7 @@ import time
 from base64 import b64encode
 from datetime import datetime
 from enum import Enum
+import os.path
 
 from telethon.tl import types
 from telethon.utils import resolve_id, get_peer_id
@@ -48,14 +49,16 @@ class Dumper:
 
     def __init__(self, config):
         """Initialise the dumper.
-        `config` should be a dict-like object with key "DBFileName"
+        `config` should be a dict-like object from the config file's Dumper section"
         """
         self.config = config
         if 'DBFileName' in self.config:
             if self.config["DBFileName"] == ':memory:':
                 self.conn = sqlite3.connect(':memory:')
             else:
-                self.conn = sqlite3.connect('{}.db'.format(self.config['DBFileName']))
+                filename = os.path.join(self.config['OutputDirectory'],
+                                        self.config['DBFileName'])
+                self.conn = sqlite3.connect('{}.db'.format(filename))
         else:
             logger.error("A database filename is required!")
             exit()

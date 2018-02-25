@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+"""The main telegram-export program"""
 import configparser
 import difflib
 import logging
 import re
 import argparse
+import os
 
 from telethon import TelegramClient, utils
 
@@ -20,20 +22,30 @@ logger.setLevel(logging.DEBUG)
 
 
 NO_USERNAME = '<no username>'
+SCRIPT_DIR = os.path.dirname(__file__)
 
 
 def load_config(filename):
     """Load config from the specified file and return the parsed config"""
+    # Get a path to the file. If it was specified, it should be fine.
+    # If it was not specified, assume it's config.ini in the script's dir.
+    if not filename:
+        filename = os.path.join(SCRIPT_DIR, 'config.ini')
     # Load from file
     config = configparser.ConfigParser()
     config.read(filename)
+
+    # Convert default output dir '.' to script dir
+    if config['Dumper']['OutputDirectory'] == '.':
+        config['Dumper']['OutputDirectory'] = SCRIPT_DIR
+    os.makedirs(config['Dumper']['OutputDirectory'], exist_ok=True)
 
     # Convert minutes to seconds
     config['Dumper']['ForceNoChangeDumpAfter'] = str(
         config['Dumper'].getint('ForceNoChangeDumpAfter', 7200) * 60)
 
     # Convert size to bytes
-    max_size = config['Downloader'].get('MaxSize') or '1MB'
+    max_size = config['Dumper'].get('MaxSize') or '1MB'
     m = re.match(r'\s*(\d+(?:\.\d*)?)\s*([kmg]?b)?\s*', max_size, re.IGNORECASE)
     if not m:
         raise ValueError('Invalid file size given for MaxSize')
@@ -44,7 +56,7 @@ def load_config(filename):
         'MB': 1024**2,
         'GB': 1024**3,
     }.get((m.group(2) or 'MB').upper()))
-    config['Downloader']['MaxSize'] = str(max_size)
+    config['Dumper']['MaxSize'] = str(max_size)
     return config
 
 
@@ -57,7 +69,7 @@ def parse_args():
     parser.add_argument('--search-dialogs', type=str, dest='search_string',
                         help='like --list-dialogs but searches for a dialog by name/username/phone')
 
-    parser.add_argument('--config-file', default='config.ini',
+    parser.add_argument('--config-file', default=None,
                         help='specify a config file. Default config.ini')
     return parser.parse_args()
 
@@ -144,10 +156,14 @@ def list_or_search_dialogs(args, client):
 
 
 def main():
+    """The main telegram-export program.
+       Goes through the configured dialogs and dumps them into the database"""
     args = parse_args()
     config = load_config(args.config_file)
+    absolute_session_name = os.path.join(
+            config['Dumper']['OutputDirectory'], config['TelegramAPI']['SessionName'])
     client = TelegramClient(
-        config['TelegramAPI']['SessionName'],
+        absolute_session_name,
         config['TelegramAPI']['ApiId'],
         config['TelegramAPI']['ApiHash']
     ).start(config['TelegramAPI']['PhoneNumber'])
@@ -155,10 +171,10 @@ def main():
     if args.list_dialogs or args.search_string:
         return list_or_search_dialogs(args, client)
 
-    downloader = Downloader(client, config['Downloader'])
+    downloader = Downloader(client, config['Dumper'])
     dumper = Dumper(config['Dumper'])
     config = config['TelegramAPI']
-    cache_file = config['SessionName'] + '.tl'
+    cache_file = os.path.join(absolute_session_name + '.tl')
     try:
         dumper.check_self_user(client.get_me(input_peer=True).user_id)
         if 'Whitelist' in dumper.config:

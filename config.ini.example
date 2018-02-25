@@ -20,6 +20,10 @@ PhoneNumber = xxxxxxxxxx
 
 [Dumper]
 
+# Output folder, where the DB, media, and cache files will be stored.
+# Leave as . to dump things in the folder with the script, or put an absolute path.
+OutputDirectory = .
+
 # Database filename (without '.db')
 ; DBFileName = export
 DBFileName = export
@@ -44,8 +48,6 @@ Whitelist = example, username
 
 # Maximum chunks to retrieve from a chat (if too many). 0 (default) means all.
 ; MaxChunks = 0
-
-[Downloader]
 
 # The file types to download, comma separated. Options are:
 # "photo", "document", "video", "audio", "sticker", "voice".
