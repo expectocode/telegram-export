@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import configparser
+import difflib
 import logging
 import re
 import argparse
@@ -48,19 +49,43 @@ def parse_args():
     parser = argparse.ArgumentParser(description="export Telegram data")
     parser.add_argument('--list-dialogs', action='store_true',
                         help='list dialogs and exit')
+
+    parser.add_argument('--search', type=str,
+                        help='searches for a dialog via name/username/phone')
+
     parser.add_argument('--config-file', default='config.ini',
                         help='specify a config file. Default config.ini')
     return parser.parse_args()
 
 
-def print_dialogs(client):
-    for dialog in client.get_dialogs(limit=None)[::-1]:  # Oldest to newest
-        ent = dialog.entity
-        try:
-            username = '@' + ent.username
-        except (AttributeError, TypeError):  # If no username or it is None
-            username = '<no username>'
-        print('{} | {} | {}'.format(utils.get_peer_id(ent), username, dialog.name))
+def fmt_dialog(dialog):
+    username = getattr(dialog.entity, 'username', None)
+    username = '@' + username if username else '<no username>'
+    return '{} | {} | {}'.format(
+        utils.get_peer_id(dialog.entity), username, dialog.name
+    )
+
+
+def find_dialog(dialogs, query, top=5, threshold=0.5):
+    seq = difflib.SequenceMatcher(b=query, autojunk=False)
+    scores = []
+    for dialog in dialogs:
+        seq.set_seq1(dialog.name)
+        name_score = seq.ratio()
+        if getattr(dialog.entity, 'username', None):
+            seq.set_seq1(dialog.entity.username)
+            username_score = seq.ratio()
+        else:
+            username_score = 0
+        if getattr(dialog.entity, 'phone', None):
+            seq.set_seq1(dialog.entity.phone)
+            phone_score = seq.ratio()
+        else:
+            phone_score = 0
+
+        scores.append((dialog, max(name_score, username_score, phone_score)))
+    scores.sort(key=lambda t: t[1], reverse=True)
+    return tuple(score[0] for score in scores[:top] if score[1] > threshold)
 
 
 def main():
@@ -69,9 +94,27 @@ def main():
     client = TelegramClient(
         config['TelegramAPI']['SessionName'], config['TelegramAPI']['ApiId'], config['TelegramAPI']['ApiHash']
     ).start(config['TelegramAPI']['PhoneNumber'])
-    if args.list_dialogs:
-        print_dialogs(client)
+
+    if args.list_dialogs or args.search:
+        dialogs = client.get_dialogs(limit=None)[::-1]  # Oldest to newest
+        if args.list_dialogs:
+            for dialog in dialogs:
+                print(fmt_dialog(dialog))
+
+        if args.search:
+            print('Searching for "{}"...'.format(args.search))
+            found = find_dialog(dialogs, args.search)
+            if not found:
+                print('Found no good results with "{}".'.format(args.search))
+            elif len(found) == 1:
+                print('Top match:', fmt_dialog(found[0]), sep='\n')
+            else:
+                print('Showing top {} matches:'.format(len(found)))
+                for dialog in found:
+                    print(fmt_dialog(dialog))
+
         return
+
     downloader = Downloader(client, config['Downloader'])
     dumper = Dumper(config['Dumper'])
     with dumper.conn:

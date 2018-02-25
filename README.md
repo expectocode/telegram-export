@@ -7,7 +7,7 @@
 
 # Usage
 
-First, copy config.ini.example to config.ini and edit some values. To write your whitelist, you may want to refer to the output of `./telegram-export --list-dialogs` to get dialog IDs. Then run `./telegram-export` and allow it to dump data.
+First, copy config.ini.example to config.ini and edit some values. To write your whitelist, you may want to refer to the output of `./telegram-export --list-dialogs` to get dialog IDs or `./telegram-export --search <query>` to filter the results. Then run `./telegram-export` and allow it to dump data.
 
 # telegram-export vs telegram-history-dump
 
