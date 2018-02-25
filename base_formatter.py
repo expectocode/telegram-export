@@ -55,6 +55,20 @@ class BaseFormatter:
             "SELECT UserID FROM SelfInformation").fetchone()[0]
 
     @staticmethod
+    def ensure_id_marked(eid, etype):
+        if etype == types.PeerUser:
+            return eid
+        if etype == types.PeerChat:
+            if eid < 0:
+                return eid
+            return -eid
+        if etype == types.PeerChannel:
+            if str(eid).startswith('-100'):
+                return eid
+            # Math magic to append -100 at start. See telethon/utils.py get_peer_id.
+            return -(i + pow(10, math.floor(math.log10(i) + 3)))
+
+    @staticmethod
     def get_timestamp(date):
         if date is None or isinstance(date, int):
             return date
@@ -158,8 +172,9 @@ class BaseFormatter:
 
     def get_entity(self, context_id, at_date=None):
         """
-        Return the entity (user, chat or channel) corresponding to this
-        context ID, at the given date (like all the specific methods).
+        Return the entity (user, chat or channel) corresponding to this context
+        ID, at the given date (like all the specific methods). Context ID must
+        be marked in the Bot API style, as with get_messages_from_context.
         """
         unmarked, kind = utils.resolve_id(context_id)
         if kind == types.PeerUser:
@@ -181,11 +196,8 @@ class BaseFormatter:
         If it is not set, get the user as we last saw them. at_date should be a UTC
         timestamp or datetime object.
         """
-        unmarked, kind = utils.resolve_id(uid)
-        if kind != types.PeerUser:
-            uid = utils.get_peer_id(types.PeerUser(unmarked))
-
         at_date = self.get_timestamp(at_date)
+        uid = self.ensure_id_marked(uid, types.PeerUser)
         cur = self.dbconn.cursor()
         query = (
             "SELECT ID, DateUpdated, FirstName, LastName, Username, "
@@ -203,10 +215,7 @@ class BaseFormatter:
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
-        unmarked, kind = utils.resolve_id(cid)
-        if kind != types.PeerChannel:
-            cid = utils.get_peer_id(types.PeerChannel(unmarked))
-
+        cid = self.ensure_id_marked(cid, types.PeerChannel)
         cur = self.dbconn.cursor()
         query = (
             "SELECT ID, DateUpdated, About, Title, Username, "
@@ -224,10 +233,7 @@ class BaseFormatter:
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
-        unmarked, kind = utils.resolve_id(sid)
-        if kind != types.PeerChannel:
-            sid = utils.get_peer_id(types.PeerChannel(unmarked))
-
+        sid = self.ensure_id_marked(sid, types.PeerChannel)
         cur = self.dbconn.cursor()
         query = (
             "SELECT ID, DateUpdated, About, Title, Username, "
@@ -245,9 +251,7 @@ class BaseFormatter:
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
-        unmarked, kind = utils.resolve_id(cid)
-        if kind != types.PeerChat:
-            cid = utils.get_peer_id(types.PeerChat(unmarked))
+        cid = self.ensure_id_marked(cid, types.PeerChat)
 
         cur = self.dbconn.cursor()
         query = (
