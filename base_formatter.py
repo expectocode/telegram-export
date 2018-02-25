@@ -30,44 +30,68 @@ class BaseFormatter:
         self.our_userid = self.dbconn.execute(
             "SELECT UserID FROM SelfInformation").fetchone()[0]
 
+    @staticmethod
+    def _build_query(*args):
+        """
+        Helper method to build SQLite WHERE queries, automatically ignoring
+        ``None`` values. The arguments should be tuples with two values the
+        first being the name (e.g. "Date < ?") and the second the value.
+
+        Returns a tuple consisting of (<where clause>, <args tuple>).
+        """
+        query = []
+        param = []
+        for arg in args:
+            if arg[1] is not None:
+                query.append(arg[0])
+                param.append(arg[1])
+        if query:
+            return 'WHERE ' + ' AND '.join(query), tuple(param)
+        else:
+            return '', ()
+
+    @classmethod
+    def _fetch_desc_or_asc(cls, cur, query, params, name, value):
+        """
+        Helper method to build a query with a parameter that prefers sorting
+        by descending, but if not found, toggles to searching by ascending.
+
+        The params parameter should be a list so that elements can be appended.
+        """
+        params.append(('{} <= ?'.format(name), value))
+        where, query_params = cls._build_query(*params)
+        params.pop()
+        cur.execute('{} {} ORDER BY DESC'.format(query, where), query_params)
+        row = cur.fetchone()
+        if row:
+            return row
+
+        params.append(('{} > ?'.format(name), value))
+        where, query_params = cls._build_query(*params)
+        params.pop()
+        cur.execute('{} {} ORDER BY ASC'.format(query, where), query_params)
+        return cur.fetchone()
+
     def get_messages_from_context(self, context_id, start_date=None, end_date=None,
                                   from_user_id=None, order='DESC'):
         """
         Yield Messages from a context. Start and end date should be UTC timestamps.
         Note that Channels will never yield any messages if from_user_id is set,
-        as there is no FromID for Channel messages. Order is ASC or DESC"""
-        order = order.upper()
-        cur = self.dbconn.cursor()
-        common_sql = ("SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
-                      "ForwardID, PostAuthor, ViewCount, MediaID FROM Message "
-                      "WHERE ContextID = ? {{where}} ORDER BY DATE {}").format(order)
-        if from_user_id is None:
-            if start_date is None and end_date is None:
-                cur.execute(common_sql.format(where=''), (context_id,))
-            elif start_date is None and end_date is not None:
-                cur.execute(common_sql.format(where="AND Date < ?"),
-                            (context_id, end_date))
-            elif start_date is not  None and end_date is None:
-                cur.execute(common_sql.format(where="AND Date > ?"),
-                            (context_id, start_date))
-            elif start_date is not None and end_date is not None:
-                cur.execute(common_sql.format(where="AND Date < ? AND Date > ?"),
-                            (context_id, end_date, start_date))
-        else:
-            if start_date is None and end_date is None:
-                cur.execute(common_sql.format(where="AND FromID = ?"),
-                            (context_id, from_user_id))
-            elif start_date is None and end_date is not None:
-                cur.execute(common_sql.format(where="AND Date < ? AND FromID = ?"),
-                            (context_id, end_date, from_user_id))
-            elif start_date is not  None and end_date is None:
-                cur.execute(common_sql.format(where="AND Date > ? AND FromID = ?"),
-                            (context_id, start_date, from_user_id))
-            elif start_date is not None and end_date is not None:
-                cur.execute(common_sql.format(
-                    where="AND Date < ? AND Date > ? AND FromID = ?"),
-                            (context_id, end_date, start_date, from_user_id))
+        as there is no FromID for Channel messages. Order is ASC or DESC.
+        """
+        where, params = self._build_query(
+            ('ContextID = ?', context_id),
+            ('Date > ?', start_date),
+            ('Date < ?', end_date),
+            ('FromID = ?', from_user_id)
+        )
 
+        cur = self.dbconn.cursor()
+        cur.execute(
+            "SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
+            "ForwardID, PostAuthor, ViewCount, MediaID FROM Message"
+            "{} ORDER BY DATE {}".format(where, order.upper()), params
+        )
         row = cur.fetchone()
         if not row:
             raise StopIteration
@@ -86,102 +110,59 @@ class BaseFormatter:
         If it is not set, get the user as we last saw them.
         """
         cur = self.dbconn.cursor()
-        if at_date is None:
-            cur.execute("SELECT ID, DateUpdated, FirstName, LastName, Username, "
-                        "Phone, Bio, Bot, CommonChatsCount, PictureID FROM User "
-                        "WHERE ID = ? ORDER BY DateUpdated DESC", (uid,))
-            row = cur.fetchone()
-        else:  # Get the highest DateUpdated before at_date
-            cur.execute("SELECT ID, DateUpdated, FirstName, LastName, Username, "
-                        "Phone, Bio, Bot, CommonChatsCount, PictureID FROM User "
-                        "WHERE ID = ? AND DateUpdated <= ? ORDER BY "
-                        "DateUpdated DESC", (uid, at_date))
-            row = cur.fetchone()
-            if not row:  # Nothing found before at_date, so try after it
-                cur.execute("SELECT ID, DateUpdated, FirstName, LastName, Username, "
-                            "Phone, Bio, Bot, CommonChatsCount, PictureID FROM User "
-                            "WHERE ID = ? AND DateUpdated > ? ORDER BY "
-                            "DateUpdated ASC", (uid, at_date))
-                row = cur.fetchone()
+        query = (
+            "SELECT ID, DateUpdated, FirstName, LastName, Username, "
+            "Phone, Bio, Bot, CommonChatsCount, PictureID FROM User"
+        )
+        params = [('ID = ?', uid)]
+        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
         if not row:
             raise ValueError("No user with ID {} in database".format(uid))
         return User(*row)
 
-    def get_channel(self, id, at_date=None):
+    def get_channel(self, cid, at_date=None):
         """
         Return the channel with given ID or raise ValueError. If at_date is set,
         get the channel as it was at the given date (to the best of our knowledge)
         """
         cur = self.dbconn.cursor()
-        if at_date is None:
-            cur.execute("SELECT ID, DateUpdated, About, Title, Username, "
-                        "PictureID, PinMessageID FROM Channel WHERE ID = ? "
-                        "ORDER BY DateUpdated DESC", (id,))
-            row = cur.fetchone()
-        else:  # Get the highest DateUpdated before at_date
-            cur.execute("SELECT ID, DateUpdated, About, Title, Username, "
-                        "PictureID, PinMessageID FROM Channel WHERE ID = ?"
-                        "AND DateUpdated <= ? ORDER BY DateUpdated DESC",
-                        (id, at_date))
-            row = cur.fetchone()
-            if not row:  # Nothing found before at_date, so try after it
-                cur.execute("SELECT ID, DateUpdated, About, Title, Username, "
-                            "PictureID, PinMessageID FROM Channel WHERE ID = ?"
-                            "AND DateUpdated > ? ORDER BY DateUpdated ASC",
-                            (id, at_date))
-                row = cur.fetchone()
+        query = (
+            "SELECT ID, DateUpdated, About, Title, Username, "
+            "PictureID, PinMessageID FROM Channel"
+        )
+        params = [('ID = ?', cid)]
+        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
         if not row:
             raise ValueError("No channel with ID {} in database".format(id))
         return Channel(*row)
 
-    def get_supergroup(self, id, at_date=None):
+    def get_supergroup(self, sid, at_date=None):
         """
         Return the supergroup with given ID or raise ValueError. If at_date is set,
         get the supergroup as it was at the given date (to the best of our knowledge)
         """
         cur = self.dbconn.cursor()
-        if at_date is None:
-            cur.execute("SELECT ID, DateUpdated, About, Title, Username, "
-                        "PictureID, PinMessageID FROM Supergroup WHERE ID = ? "
-                        "ORDER BY DateUpdated DESC", (id,))
-            row = cur.fetchone()
-        else:  # Get the highest DateUpdated before at_date
-            cur.execute("SELECT ID, DateUpdated, About, Title, Username, "
-                        "PictureID, PinMessageID FROM Supergroup WHERE ID = ?"
-                        "AND DateUpdated <= ? ORDER BY DateUpdated DESC",
-                        (id, at_date))
-            row = cur.fetchone()
-            if not row:  # Nothing found before at_date, so try after it
-                cur.execute("SELECT ID, DateUpdated, About, Title, Username, "
-                            "PictureID, PinMessageID FROM Supergroup WHERE ID = ?"
-                            "AND DateUpdated > ? ORDER BY DateUpdated ASC",
-                            (id, at_date))
-                row = cur.fetchone()
+        query = (
+            "SELECT ID, DateUpdated, About, Title, Username, "
+            "PictureID, PinMessageID FROM Supergroup"
+        )
+        params = [('ID = ?', sid)]
+        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
         if not row:
             raise ValueError("No supergroup with ID {} in database".format(id))
         return Supergroup(*row)
 
-    def get_chat(self, id, at_date=None):
+    def get_chat(self, cid, at_date=None):
         """
         Return the chat with given ID or raise ValueError. If at_date is set,
         get the chat as it was at the given date (to the best of our knowledge)
         """
         cur = self.dbconn.cursor()
-        if at_date is None:
-            cur.execute("SELECT ID, DateUpdated, Title, MigratedToID, "
-                        "PictureID FROM Chat WHERE ID = ? ORDER BY "
-                        "DateUpdated DESC", (id,))
-            row = cur.fetchone()
-        else:  # Get the highest DateUpdated before at_date
-            cur.execute("SELECT ID, DateUpdated, Title, MigratedToID, "
-                        "PictureID FROM Chat WHERE ID = ? AND DateUpdated <= ? "
-                        "ORDER BY DateUpdated DESC", (id, at_date))
-            row = cur.fetchone()
-            if not row:  # Nothing found before at_date, so try after it
-                cur.execute("SELECT ID, DateUpdated, Title, MigratedToID, "
-                            "PictureID FROM Chat WHERE ID = ? AND DateUpdated > ? "
-                            "ORDER BY DateUpdated ASC", (id, at_date))
-                row = cur.fetchone()
+        query = (
+            "SELECT ID, DateUpdated, Title, MigratedToID, PictureID FROM Chat"
+        )
+        params = [('ID = ?', cid)]
+        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
         if not row:
             raise ValueError("No chat with ID {} in database".format(id))
         return Chat(*row)
