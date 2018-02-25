@@ -4,7 +4,7 @@ from collections import namedtuple
 import sqlite3
 import datetime
 
-from telethon.utils import get_peer_id
+from telethon import utils
 from telethon.tl import types
 
 
@@ -151,7 +151,10 @@ class BaseFormatter:
         If it is not set, get the user as we last saw them. at_date should be a UTC
         timestamp or datetime object.
         """
-        uid = get_peer_id(types.PeerUser(uid))
+        unmarked, kind = utils.resolve_id(uid)
+        if kind != types.PeerUser:
+            uid = utils.get_peer_id(types.PeerUser(unmarked))
+
         at_date = self.get_timestamp(at_date)
         cur = self.dbconn.cursor()
         query = (
@@ -170,7 +173,10 @@ class BaseFormatter:
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
-        uid = get_peer_id(types.PeerChannel(cid))
+        unmarked, kind = utils.resolve_id(cid)
+        if kind != types.PeerChannel:
+            cid = utils.get_peer_id(types.PeerChannel(unmarked))
+
         cur = self.dbconn.cursor()
         query = (
             "SELECT ID, DateUpdated, About, Title, Username, "
@@ -188,7 +194,10 @@ class BaseFormatter:
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
-        uid = get_peer_id(types.PeerChannel(sid))
+        unmarked, kind = utils.resolve_id(sid)
+        if kind != types.PeerChannel:
+            sid = utils.get_peer_id(types.PeerChannel(unmarked))
+
         cur = self.dbconn.cursor()
         query = (
             "SELECT ID, DateUpdated, About, Title, Username, "
@@ -206,7 +215,10 @@ class BaseFormatter:
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
-        uid = get_peer_id(types.PeerChat(cid))
+        unmarked, kind = utils.resolve_id(cid)
+        if kind != types.PeerChat:
+            cid = utils.get_peer_id(types.PeerChat(unmarked))
+
         cur = self.dbconn.cursor()
         query = (
             "SELECT ID, DateUpdated, Title, MigratedToID, PictureID FROM Chat"
