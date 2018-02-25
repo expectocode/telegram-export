@@ -6,7 +6,6 @@ import re
 import argparse
 
 from telethon import TelegramClient, utils
-from telethon.tl.types import Channel
 
 from dumper import Dumper
 from downloader import Downloader
@@ -24,6 +23,7 @@ NO_USERNAME = '<no username>'
 
 
 def load_config(filename):
+    """Load config from the specified file and return the parsed config"""
     # Load from file
     config = configparser.ConfigParser()
     config.read(filename)
@@ -49,6 +49,7 @@ def load_config(filename):
 
 
 def parse_args():
+    """Parse command-line arguments to the script"""
     parser = argparse.ArgumentParser(description="export Telegram data")
     parser.add_argument('--list-dialogs', action='store_true',
                         help='list dialogs and exit')
@@ -62,6 +63,9 @@ def parse_args():
 
 
 def fmt_dialog(dialog, id_pad=0, username_pad=0):
+    """
+    Space-fill a row with given padding values to ensure alignment when printing dialogs
+    """
     username = getattr(dialog.entity, 'username', None)
     username = '@' + username if username else NO_USERNAME
     return '{:<{id_pad}} | {:<{username_pad}} | {}'.format(
@@ -71,6 +75,7 @@ def fmt_dialog(dialog, id_pad=0, username_pad=0):
 
 
 def find_fmt_dialog_padding(dialogs):
+    """Find the correct amount of space padding to give dialogs when printing them"""
     no_username = NO_USERNAME[:-1]  # Account for the added '@' if username
     return (
         max(len(str(utils.get_peer_id(dialog.entity))) for dialog in dialogs),
@@ -80,6 +85,7 @@ def find_fmt_dialog_padding(dialogs):
 
 
 def find_dialog(dialogs, query, top=25, threshold=0.7):
+    """Iterate through dialogs and return, sorted, the best matches for a given query"""
     seq = difflib.SequenceMatcher(b=query, autojunk=False)
     scores = []
     for index, dialog in enumerate(dialogs):
@@ -109,6 +115,34 @@ def find_dialog(dialogs, query, top=25, threshold=0.7):
     return matches[:top], num_not_shown
 
 
+def list_or_search_dialogs(args, client):
+    """List the user's dialogs and/or search them for a query"""
+    dialogs = client.get_dialogs(limit=None)[::-1]  # Oldest to newest
+    if args.list_dialogs:
+        id_pad, username_pad = find_fmt_dialog_padding(dialogs)
+        for dialog in dialogs:
+            print(fmt_dialog(dialog, id_pad, username_pad))
+
+    if args.search_string:
+        print('Searching for "{}"...'.format(args.search_string))
+        found, num_not_shown = find_dialog(dialogs, args.search_string)
+        if not found:
+            print('Found no good results with "{}".'.format(args.search_string))
+        elif len(found) == 1:
+            print('Top match:', fmt_dialog(found[0]), sep='\n')
+        else:
+            if num_not_shown > 0:
+                print('Showing top {} matches of {}:'.format(
+                    len(found), len(found) + num_not_shown))
+            else:
+                print('Showing top {} matches:'.format(len(found)))
+            id_pad, username_pad = find_fmt_dialog_padding(found)
+            for dialog in found:
+                print(fmt_dialog(dialog, id_pad, username_pad))
+
+    client.disconnect()
+
+
 def main():
     args = parse_args()
     config = load_config(args.config_file)
@@ -119,31 +153,7 @@ def main():
     ).start(config['TelegramAPI']['PhoneNumber'])
 
     if args.list_dialogs or args.search_string:
-        dialogs = client.get_dialogs(limit=None)[::-1]  # Oldest to newest
-        if args.list_dialogs:
-            id_pad, username_pad = find_fmt_dialog_padding(dialogs)
-            for dialog in dialogs:
-                print(fmt_dialog(dialog, id_pad, username_pad))
-
-        if args.search_string:
-            print('Searching for "{}"...'.format(args.search_string))
-            found, num_not_shown = find_dialog(dialogs, args.search_string)
-            if not found:
-                print('Found no good results with "{}".'.format(args.search_string))
-            elif len(found) == 1:
-                print('Top match:', fmt_dialog(found[0]), sep='\n')
-            else:
-                if num_not_shown > 0:
-                    print('Showing top {} matches of {}:'.format(
-                        len(found), len(found) + num_not_shown))
-                else:
-                    print('Showing top {} matches:'.format(len(found)))
-                id_pad, username_pad = find_fmt_dialog_padding(found)
-                for dialog in found:
-                    print(fmt_dialog(dialog, id_pad, username_pad))
-
-        client.disconnect()
-        return
+        return list_or_search_dialogs(args, client)
 
     downloader = Downloader(client, config['Downloader'])
     dumper = Dumper(config['Dumper'])
