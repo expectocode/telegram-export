@@ -5,7 +5,7 @@ from time import sleep
 
 from telethon.extensions import BinaryReader
 from telethon.tl import types, functions
-from telethon.utils import get_peer_id, resolve_id
+from telethon import utils
 
 __log__ = logging.getLogger(__name__)
 
@@ -97,9 +97,9 @@ class Downloader:
         __log__.info('Starting dump with %s', target)
         chunks_left = dumper.max_chunks
         if isinstance(target, types.InputPeerSelf):
-            target_id = self.client.get_me().id
+            target_id = self.client.get_me(input_peer=True).user_id
         else:
-            target_id = get_peer_id(target)
+            target_id = utils.get_peer_id(target)
 
         req.offset_id, req.offset_date, stop_at = dumper.get_resume(target_id)
         if req.offset_id:
@@ -110,8 +110,8 @@ class Downloader:
         while True:
             # TODO How should edits be handled? Always read first two days?
             history = self.client(req)
-            entities.update({get_peer_id(c): c for c in history.chats})
-            entities.update({get_peer_id(u): u for u in history.users})
+            entities.update({utils.get_peer_id(c): c for c in history.chats})
+            entities.update({utils.get_peer_id(u): u for u in history.users})
 
             for m in history.messages:
                 if isinstance(m, types.Message):
@@ -177,31 +177,25 @@ class Downloader:
 
         __log__.info('Done. Retrieving full information about entities.')
         # TODO Save their profile picture
-        for mid, entity in entities.items():
-            eid, etype = resolve_id(mid)
-            if etype == types.PeerUser:
+        for i, entity in enumerate(entities.values(), start=1):
+            __log__.debug('Dumping entity {}, {}/{} ({:.1%})'.format(
+                utils.get_display_name(entity),
+                i, len(entities), i / len(entities)
+            ))
+            if isinstance(entity, types.User):
                 if entity.deleted or entity.min:
-                    continue
                     # Otherwise, the empty first name causes an IntegrityError
+                    continue
                 full_user = self.client(functions.users.GetFullUserRequest(entity))
                 sleep(0.5)
                 photo_id = dumper.dump_media(full_user.profile_photo)
                 dumper.dump_user(full_user, photo_id=photo_id)
 
-            elif etype == types.PeerChat:
-                if isinstance(entity, types.ChatForbidden):
-                    continue
-                if isinstance(entity, types.Chat):
-                    photo_id = dumper.dump_media(entity.photo)
-                else:
-                    photo_id = None
+            elif isinstance(entity, types.Chat):
+                photo_id = dumper.dump_media(entity.photo)
                 dumper.dump_chat(entity, photo_id=photo_id)
 
-            elif etype == types.PeerChannel:
-                if hasattr(entity, 'left') and entity.left:
-                    continue  # TODO why? Could be good data
-                if isinstance(entity, types.ChannelForbidden):
-                    continue
+            elif isinstance(entity, types.Channel):
                 full = self.client(functions.channels.GetFullChannelRequest(entity))
                 assert isinstance(full, types.messages.ChatFull)
                 sleep(0.5)
@@ -211,6 +205,9 @@ class Downloader:
                     dumper.dump_supergroup(full.full_chat, entity, photo_id=photo_id)
                 else:
                     dumper.dump_channel(full.full_chat, entity, photo_id=photo_id)
+
+            else:
+                __log__.info('Ignoring entity %s', entity)
 
             dumper.commit()
 
