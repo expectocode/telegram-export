@@ -15,6 +15,9 @@ from base_formatter import BaseFormatter
 from downloader import Downloader
 from dumper import Dumper
 
+# Configuration as to which tests to run
+ALLOW_NETWORK = False
+
 
 def gen_username(length):
     """Generates a random username of max length "length" (minimum 4)"""
@@ -57,6 +60,9 @@ class TestDumpAll(unittest.TestCase):
         This method will ensure that all messages are retrieved even
         on weird conditions.
         """
+        if not ALLOW_NETWORK:
+            raise unittest.SkipTest('Network tests are disabled')
+
         config = configparser.ConfigParser()
         config.read('config.ini')
         config = config['TelegramAPI']
