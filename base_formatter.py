@@ -66,7 +66,8 @@ class BaseFormatter:
             ('ID = ?', eid),
             ('DateUpdated <= ?', at_date)
         )
-        cur.execute('{} {} ORDER BY DESC'.format(query, where), query_params)
+        cur.execute('{} {} ORDER BY DateUpdated DESC'
+                    .format(query, where), query_params)
         row = cur.fetchone()
         if row:
             return row
@@ -75,7 +76,8 @@ class BaseFormatter:
             ('ID = ?', eid),
             ('DateUpdated > ?', at_date)
         )
-        cur.execute('{} {} ORDER BY ASC'.format(query, where), query_params)
+        cur.execute('{} {} ORDER BY DateUpdated ASC'
+                    .format(query, where), query_params)
         return cur.fetchone()
 
     def get_messages_from_context(self, context_id, start_date=None, end_date=None,
@@ -137,7 +139,7 @@ class BaseFormatter:
         )
         row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
-            raise ValueError("No channel with ID {} in database".format(id))
+            raise ValueError("No channel with ID {} in database".format(cid))
         return Channel(*row)
 
     def get_supergroup(self, sid, at_date=None):
@@ -152,7 +154,7 @@ class BaseFormatter:
         )
         row = self._fetch_at_date(cur, query, sid, at_date)
         if not row:
-            raise ValueError("No supergroup with ID {} in database".format(id))
+            raise ValueError("No supergroup with ID {} in database".format(sid))
         return Supergroup(*row)
 
     def get_chat(self, cid, at_date=None):
@@ -166,7 +168,7 @@ class BaseFormatter:
         )
         row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
-            raise ValueError("No chat with ID {} in database".format(id))
+            raise ValueError("No chat with ID {} in database".format(cid))
         return Chat(*row)
 
     def get_media(self, id):
