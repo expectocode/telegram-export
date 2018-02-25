@@ -224,15 +224,14 @@ class Dumper:
         """Dump a MessageService into the ??? table"""
         # ddg.gg/%68%61%68%61%20%79%65%73?ia=images
 
-    def dump_user(self, user_full, photo_id):
+    def dump_user(self, user_full, photo_id, timestamp=None):
         # TODO: Use invalidation time
         """Dump a UserFull into the User table
         Params: UserFull to dump, MediaID of the profile photo in the DB
         Returns -, or False if not added"""
         # Rationale for UserFull rather than User is to get bio
-        timestamp = round(time.time())
         values = (user_full.user.id,
-                  timestamp,
+                  timestamp or round(time.time()),
                   user_full.user.first_name,
                   user_full.user.last_name,
                   user_full.user.username,
@@ -250,16 +249,15 @@ class Dumper:
 
         return self._insert('User', values)
 
-    def dump_channel(self, channel_full, channel, photo_id):
+    def dump_channel(self, channel_full, channel, photo_id, timestamp=None):
         # TODO: Use invalidation time
         """Dump a Channel into the Channel table
         Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
         Returns -"""
         # Need to get the full object too for 'about' info
-        timestamp = round(time.time())
         return self._insert('Channel',
                             (get_peer_id(channel),
-                             timestamp,
+                             timestamp or round(time.time()),
                              channel_full.about,
                              channel.title,
                              channel.username,
@@ -267,16 +265,15 @@ class Dumper:
                              channel_full.pinned_msg_id)
                             )
 
-    def dump_supergroup(self, supergroup_full, supergroup, photo_id):
+    def dump_supergroup(self, supergroup_full, supergroup, photo_id, timestamp=None):
         # TODO: Use invalidation time
         """Dump a Supergroup into the Supergroup table
         Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
         Returns -"""
         # Need to get the full object too for 'about' info
-        timestamp = round(time.time())
         return self._insert('Supergroup',
                             (get_peer_id(supergroup),
-                             timestamp,
+                             timestamp or round(time.time()),
                              supergroup_full.about if hasattr(supergroup_full, 'about') else '',
                              supergroup.title,
                              supergroup.username,
@@ -284,19 +281,18 @@ class Dumper:
                              supergroup_full.pinned_msg_id)
                             )
 
-    def dump_chat(self, chat, photo_id):
+    def dump_chat(self, chat, photo_id, timestamp=None):
         # TODO: Use invalidation time
         """Dump a Chat into the Chat table
         Params: Chat to dump, MediaID of the profile photo in the DB
         Returns -"""
-        timestamp = round(time.time())
         if isinstance(chat.migrated_to, types.InputChannel):
             migrated_to_id = chat.migrated_to.channel_id
         else:
             migrated_to_id = None
         return self._insert('Chat',
                             (get_peer_id(chat),
-                             timestamp,
+                             timestamp or round(time.time()),
                              chat.title,
                              migrated_to_id,
                              photo_id)
