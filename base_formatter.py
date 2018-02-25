@@ -144,6 +144,36 @@ class BaseFormatter:
                 return
             out = self.our_userid == row[3]
 
+    def iter_context_ids(self):
+        """
+        Iterates over all the context IDs available. This method should
+        be useful if one desires to format all the available conversations.
+        """
+        cur = self.dbconn.cursor()
+        cur.execute('SELECT DISTINCT ContextID FROM Message')
+        row = cur.fetchone()
+        while row:
+            yield row[0]
+            row = cur.fetchone()
+
+    def get_entity(self, context_id, at_date=None):
+        """
+        Return the entity (user, chat or channel) corresponding to this
+        context ID, at the given date (like all the specific methods).
+        """
+        unmarked, kind = utils.resolve_id(context_id)
+        if kind == types.PeerUser:
+            return self.get_user(context_id, at_date=at_date)
+        elif kind == types.PeerChat:
+            return self.get_chat(context_id, at_date=at_date)
+        elif kind == types.PeerChannel:
+            try:
+                return self.get_supergroup(context_id, at_date=at_date)
+            except ValueError:
+                return self.get_channel(context_id, at_date=at_date)
+        else:
+            raise ValueError('Invalid ID {} given'.format(context_id))
+
     def get_user(self, uid, at_date=None):
         """
         Return the user with given ID or raise ValueError. If at_date is set,
