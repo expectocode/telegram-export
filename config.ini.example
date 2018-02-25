@@ -28,7 +28,8 @@ DBFileName = export
 ; ForceNoChangeDumpAfter = 7200
 ForceNoChangeDumpAfter = 7200
 
-# Either Whitelist or Blacklist should be present, not both.
+# Either Whitelist or Blacklist should be present, not both. If both are
+# present, only Whitelist will be used.
 # * Whitelist will backup only the usernames, phones or IDs listed.
 # * Blacklist will backup everything but listed.
 # Phones start with '+' (no quotes), and items separated by comma.
