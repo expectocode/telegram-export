@@ -40,6 +40,10 @@ telegram-export vs telegram-history-dump
 
 - export will dump participants lists, which dump does not do.
 
+- export's database file is bound to an user, and the program will exit if
+  you login as another person to avoid mixing things up. You should specify
+  a different filename for the database for every user you plan on using.
+  You can easily select different config files through `--config-file`.
 
 Limitations
 ===========
@@ -54,8 +58,3 @@ Limitations
   for multiple versions of a message in the db. However, this shouldn't be
   much of an issue, since most edits or deletions are legit and often to
   fix typos.
-
-- You cannot use the program as multiple users - it assumes that everything
-  is from the "viewpoint" of the same user. An easy workaround is to use a
-  different database for each user, which can be achieved by using several
-  config files and the `--config-file` option of the main program.

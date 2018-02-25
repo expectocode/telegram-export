@@ -3,6 +3,7 @@
 import json
 import logging
 import sqlite3
+import sys
 import time
 from base64 import b64encode
 from datetime import datetime
@@ -251,6 +252,23 @@ class Dumper:
                 else:
                     parsed.append(mapping[kind](offset, length))
         return parsed
+
+    def check_self_user(self, self_id):
+        """
+        Checks the self ID. If there is a stored ID and it doesn't match the
+        given one, an error message is printed and the application exits.
+        """
+        cur = self.conn.cursor()
+        cur.execute("SELECT UserID FROM SelfInformation")
+        result = cur.fetchone()
+        if result:
+            if result[0] != self_id:
+                print('This export database belongs to another user!',
+                      file=sys.stderr)
+                exit(1)
+        else:
+            cur.execute("INSERT INTO SelfInformation VALUES (?)", (self_id,))
+            self.commit()
 
     def dump_message(self, message, context_id, forward_id, media_id):
         # TODO handle edits/deletes (fundamental problems with non-long-running exporter)

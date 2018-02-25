@@ -142,17 +142,15 @@ def main():
                 for dialog in found:
                     print(fmt_dialog(dialog, id_pad, username_pad))
 
+        client.disconnect()
         return
 
     downloader = Downloader(client, config['Downloader'])
     dumper = Dumper(config['Dumper'])
-    with dumper.conn:
-        dumper.conn.execute(
-                "INSERT INTO SelfInformation VALUES (?)",
-                (client.get_me(input_peer=True).user_id,))
     config = config['TelegramAPI']
     cache_file = config['SessionName'] + '.tl'
     try:
+        dumper.check_self_user(client.get_me(input_peer=True).user_id)
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
             entities = downloader.load_entities_from_str(

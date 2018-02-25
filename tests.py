@@ -278,7 +278,7 @@ class TestDumpAll(unittest.TestCase):
             version=1
         )
         dumper = Dumper({'DBFileName': ':memory:'})
-        dumper.conn.execute("INSERT INTO SelfInformation VALUES (?)", (777,))
+        dumper.check_self_user(777)
 
         fmt = BaseFormatter(dumper.conn)
         for month in range(1, 13):
@@ -306,7 +306,7 @@ class TestDumpAll(unittest.TestCase):
         Ensures that the BaseFormatter is able to correctly yield messages.
         """
         dumper = Dumper({'DBFileName': ':memory:'})
-        dumper.conn.execute("INSERT INTO SelfInformation VALUES (?)", (123,))
+        dumper.check_self_user(123)
         msg = types.Message(
             id=1,
             to_id=123,
