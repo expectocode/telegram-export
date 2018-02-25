@@ -51,24 +51,24 @@ class BaseFormatter:
             return '', ()
 
     @classmethod
-    def _fetch_desc_or_asc(cls, cur, query, params, name, value):
+    def _fetch_at_date(cls, cur, query, eid, at_date):
         """
-        Helper method to build a query with a parameter that prefers sorting
-        by descending, but if not found, toggles to searching by ascending.
-
-        The params parameter should be a list so that elements can be appended.
+        Helper method around the common operation to fetch a type by its ID
+        and a "DateUpdated" parameter.
         """
-        params.append(('{} <= ?'.format(name), value))
-        where, query_params = cls._build_query(*params)
-        params.pop()
+        where, query_params = cls._build_query(
+            ('ID = ?', eid),
+            ('DateUpdated <= ?', at_date)
+        )
         cur.execute('{} {} ORDER BY DESC'.format(query, where), query_params)
         row = cur.fetchone()
         if row:
             return row
 
-        params.append(('{} > ?'.format(name), value))
-        where, query_params = cls._build_query(*params)
-        params.pop()
+        where, query_params = cls._build_query(
+            ('ID = ?', eid),
+            ('DateUpdated > ?', at_date)
+        )
         cur.execute('{} {} ORDER BY ASC'.format(query, where), query_params)
         return cur.fetchone()
 
@@ -114,8 +114,7 @@ class BaseFormatter:
             "SELECT ID, DateUpdated, FirstName, LastName, Username, "
             "Phone, Bio, Bot, CommonChatsCount, PictureID FROM User"
         )
-        params = [('ID = ?', uid)]
-        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
+        row = self._fetch_at_date(cur, query, uid, at_date)
         if not row:
             raise ValueError("No user with ID {} in database".format(uid))
         return User(*row)
@@ -130,8 +129,7 @@ class BaseFormatter:
             "SELECT ID, DateUpdated, About, Title, Username, "
             "PictureID, PinMessageID FROM Channel"
         )
-        params = [('ID = ?', cid)]
-        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
+        row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
             raise ValueError("No channel with ID {} in database".format(id))
         return Channel(*row)
@@ -146,8 +144,7 @@ class BaseFormatter:
             "SELECT ID, DateUpdated, About, Title, Username, "
             "PictureID, PinMessageID FROM Supergroup"
         )
-        params = [('ID = ?', sid)]
-        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
+        row = self._fetch_at_date(cur, query, sid, at_date)
         if not row:
             raise ValueError("No supergroup with ID {} in database".format(id))
         return Supergroup(*row)
@@ -161,8 +158,7 @@ class BaseFormatter:
         query = (
             "SELECT ID, DateUpdated, Title, MigratedToID, PictureID FROM Chat"
         )
-        params = [('ID = ?', cid)]
-        row = self._fetch_desc_or_asc(cur, query, params, 'DateUpdated', at_date)
+        row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
             raise ValueError("No chat with ID {} in database".format(id))
         return Chat(*row)
