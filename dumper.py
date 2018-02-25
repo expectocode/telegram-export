@@ -173,6 +173,7 @@ class Dumper:
                       "PostAuthor TEXT,"
                       "ViewCount INT,"
                       "MediaID INT,"
+                      "Formatting TEXT,"  # e.g. bold, italic, etc.
                       "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
                       "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
                       "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
@@ -193,6 +194,63 @@ class Dumper:
         first version of the tables, in the future it should alter
         tables or somehow transfer the data between what canged.
         """
+
+    @staticmethod
+    def _encode_entities(entities):
+        if not entities:
+            return None
+        mapping = {
+            types.MessageEntityPre: 'pre',
+            types.MessageEntityCode: 'code',
+            types.MessageEntityBold: 'bold',
+            types.MessageEntityItalic: 'italic',
+            types.MessageEntityTextUrl: 'texturl',
+            types.MessageEntityMentionName: 'mentionname'
+        }
+        parsed = []
+        for entity in entities:
+            if type(entity) in mapping:
+                if isinstance(entity, types.MessageEntityTextUrl):
+                    extra = ',{}'.format(
+                        entity.url.replace(',', '%2c').replace(';', '%3b')
+                    )
+                elif isinstance(entity, types.MessageEntityMentionName):
+                    extra = ',{}'.format(entity.user_id)
+                else:
+                    extra = ''
+                parsed.append('{},{},{}{}'.format(
+                    mapping[type(entity)], entity.offset, entity.length, extra
+                ))
+        return ';'.join(parsed)
+
+    @staticmethod
+    def _decode_entities(string):
+        if not string:
+            return None
+        mapping = {
+            'pre': types.MessageEntityPre,
+            'code': types.MessageEntityCode,
+            'bold': types.MessageEntityBold,
+            'italic': types.MessageEntityItalic,
+            'texturl': types.MessageEntityTextUrl,
+            'mentionname': types.MessageEntityMentionName
+        }
+        parsed = []
+        for part in string.split(';'):
+            split = part.split(',')
+            kind, offset, length = split[0], int(split[1]), int(split[2])
+            if kind in mapping:
+                if kind == 'texturl':
+                    parsed.append(types.MessageEntityTextUrl(
+                        offset, length, split[-1]
+                    ))
+                elif kind == 'mentionname':
+                    parsed.append(types.MessageEntityMentionName(
+                        offset, length, int(split[-1])
+                    ))
+                else:
+                    parsed.append(mapping[kind](offset, length))
+        return parsed
 
     def dump_message(self, message, context_id, forward_id, media_id):
         # TODO handle edits/deletes (fundamental problems with non-long-running exporter)
@@ -217,7 +275,8 @@ class Dumper:
                              forward_id,
                              message.post_author,
                              message.views,
-                             media_id)
+                             media_id,
+                             self._encode_entities(message.entities))
                             )
 
     def dump_message_service(self, message, media_id):
@@ -598,7 +657,8 @@ class Dumper:
             fwd_from=fwd,
             post_author=message_tuple[7],
             views=message_tuple[8],
-            media=media  # Cannot exactly reconstruct it
+            media=media,  # Cannot exactly reconstruct it
+            entities=self._decode_entities(message_tuple[10])
         )
 
     @staticmethod

@@ -6,7 +6,7 @@ import sqlite3
 
 Message = namedtuple('Message', (
     'id', 'context_id', 'date', 'from_id', 'text', 'reply_message_id',
-    'forward_id', 'post_author', 'view_count', 'media_id', 'out'
+    'forward_id', 'post_author', 'view_count', 'media_id', 'formatting', 'out'
 ))
 
 User = namedtuple('User', (
@@ -111,8 +111,9 @@ class BaseFormatter:
         cur = self.dbconn.cursor()
         cur.execute(
             "SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
-            "ForwardID, PostAuthor, ViewCount, MediaID FROM Message"
-            "{} ORDER BY DATE {}".format(where, order.upper()), params
+            "ForwardID, PostAuthor, ViewCount, MediaID, Formatting "
+            "FROM Message {} ORDER BY DATE {}".format(where, order.upper()),
+            params
         )
         row = cur.fetchone()
         if not row:

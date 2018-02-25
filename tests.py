@@ -6,6 +6,7 @@ import unittest
 from datetime import datetime, timedelta
 
 from telethon import TelegramClient, utils
+from telethon.extensions import markdown
 from telethon.errors import (
     PhoneNumberOccupiedError, SessionPasswordNeededError
 )
@@ -232,6 +233,36 @@ class TestDumpAll(unittest.TestCase):
         )
         dumper.dump_supergroup(channel_full, channel, photo_id=None)
         dumper.dump_channel(channel_full, channel, photo_id=None)
+
+    def test_dump_msg_entities(self):
+        message = types.Message(
+            id=1,
+            to_id=types.PeerUser(321),
+            date=datetime.now(),
+            message='No entities'
+        )
+        dumper = Dumper({'DBFileName': ':memory:'})
+
+        # Test with no entities
+        dumper.dump_message(message, 123, None, None)
+        dumper.commit()
+        assert not dumper.get_message(123, 'MIN').entities
+
+        # Test with many entities
+        text, entities = markdown.parse(
+            'Testing message with __italic__, **bold**, inline '
+            '[links](https://example.com) and [mentions](@hi), '
+            'as well as `code` and ``pre`` blocks.'
+        )
+        entities[3] = types.MessageEntityMentionName(
+            entities[3].offset, entities[3].length, 123
+        )
+        message.id = 2
+        message.message = text
+        message.entities = entities
+        dumper.dump_message(message, 123, None, None)
+        dumper.commit()
+        assert dumper.get_message(123, 'MAX').entities == message.entities
 
     def test_formatter_get_chat(self):
         """
