@@ -15,7 +15,7 @@ To write your whitelist, you may want to refer to the output of
 Then run `./telegram-export` and allow it to dump data.
 
 
-telegram-export vs telegram-history-dump
+telegram-export vs [telegram-history-dump](https://github.com/tvdstaaij/telegram-history-dump)
 ========================================
 
 > *(For brevity we'll just refer them to as "export" and "dump")*
@@ -32,18 +32,30 @@ telegram-export vs telegram-history-dump
 
 - Using [`telethon`](https://github.com/LonamiWebs/Telethon) instead of
   [`tg-cli`](https://github.com/vysheng/tg) allows support for newer Telegram
-  features like pinned messages and user bios, and avoids the `tg-cli` bug
-  which made dumping channels impossible, as well as several other `tg-cli`
-  annoyances (such as being somewhat harder to install).
+  features like pinned messages, admin logs, user bios, first-class support for
+  supergroups and avoids the `tg-cli` bug which made dumping channels
+  impossible, as well as several other `tg-cli` annoyances (such as being
+  somewhat harder to install).
 
 - No support for service messages yet, which dump does support.
 
-- export will dump participants lists, which dump does not do.
+- Newer and less mature than dump
 
-- export's database file is bound to an user, and the program will exit if
-  you login as another person to avoid mixing things up. You should specify
-  a different filename for the database for every user you plan on using.
-  You can easily select different config files through `--config-file`.
+- Implemented features which dump does not support (incomplete list):
+	- Dumping Users/Channels/Chats as their own entities, not just as message
+  metadata. This allows things like user bios, channel descriptions and profile
+  pictures.
+    - Pinned messages (dump kind of supports this, but only by saving a message
+  replying to the pinned messaging with text 'pinned the message')
+
+- Planned features which dump does not support (incomplete list):
+    - participant lists
+	- admin logs
+
+- export's database file is bound to a user (like dump), and the program will
+  exit if you login as another person to avoid mixing things up. If you do use
+  export with multiple users, you should specify a different database for each
+  user. You can easily select different config files through `--config-file`.
 
 Limitations
 ===========
