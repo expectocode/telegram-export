@@ -56,6 +56,10 @@ class BaseFormatter:
 
     @staticmethod
     def ensure_id_marked(eid, etype):
+        """
+        Given an entity ID and type (PeerUser, PeerChat, PeerChannel), return
+        the marked ID regardless of whether the ID is already marked.
+        """
         if etype == types.PeerUser:
             return eid
         if etype == types.PeerChat:
@@ -69,7 +73,31 @@ class BaseFormatter:
             return -(i + pow(10, math.floor(math.log10(i) + 3)))
 
     @staticmethod
+    def get_display_name(entity):
+        """
+        Get the display name of a Chat, Channel, Supergroup, or User namedtuple.
+        Modeled on telethon/utils.py get_display_name. Return '' if there is no name,
+        and raise ValueError if not passed one of the above types.
+        """
+        if isinstance(entity, User):
+            if entity.first_name and entity.last_name:
+                return '{} {}'.format(entity.first_name, entity.last_name)
+            elif entity.first_name:
+                return entity.first_name
+            elif entity.last_name:
+                return entity.last_name
+            return ''
+
+        if isinstance(entity, (Supergroup, Channel, Chat)):
+            if entity.title:
+                return entity.title
+            return ''
+
+        raise ValueError("Cannot get display name of a {} object".format(type(entity)))
+
+    @staticmethod
     def get_timestamp(date):
+        """Get a unix timestamp from an int, datetime, or date"""
         if date is None or isinstance(date, int):
             return date
         if isinstance(date, datetime.datetime):
