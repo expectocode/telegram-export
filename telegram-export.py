@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+NO_USERNAME = '<no username>'
+
+
 def load_config(filename):
     # Load from file
     config = configparser.ConfigParser()
@@ -58,11 +61,21 @@ def parse_args():
     return parser.parse_args()
 
 
-def fmt_dialog(dialog):
+def fmt_dialog(dialog, id_pad=0, username_pad=0):
     username = getattr(dialog.entity, 'username', None)
-    username = '@' + username if username else '<no username>'
-    return '{} | {} | {}'.format(
-        utils.get_peer_id(dialog.entity), username, dialog.name
+    username = '@' + username if username else NO_USERNAME
+    return '{:<{id_pad}} | {:<{username_pad}} | {}'.format(
+        utils.get_peer_id(dialog.entity), username, dialog.name,
+        id_pad=id_pad, username_pad=username_pad
+    )
+
+
+def find_fmt_dialog_padding(dialogs):
+    no_username = NO_USERNAME[:-1]  # Account for the added '@' if username
+    return (
+        max(len(str(utils.get_peer_id(dialog.entity))) for dialog in dialogs),
+        max(len(getattr(dialog.entity, 'username', no_username) or no_username)
+            for dialog in dialogs) + 1
     )
 
 
@@ -98,8 +111,9 @@ def main():
     if args.list_dialogs or args.search:
         dialogs = client.get_dialogs(limit=None)[::-1]  # Oldest to newest
         if args.list_dialogs:
+            id_pad, username_pad = find_fmt_dialog_padding(dialogs)
             for dialog in dialogs:
-                print(fmt_dialog(dialog))
+                print(fmt_dialog(dialog, id_pad, username_pad))
 
         if args.search:
             print('Searching for "{}"...'.format(args.search))
@@ -110,8 +124,9 @@ def main():
                 print('Top match:', fmt_dialog(found[0]), sep='\n')
             else:
                 print('Showing top {} matches:'.format(len(found)))
+                id_pad, username_pad = find_fmt_dialog_padding(found)
                 for dialog in found:
-                    print(fmt_dialog(dialog))
+                    print(fmt_dialog(dialog, id_pad, username_pad))
 
         return
 
