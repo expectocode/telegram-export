@@ -1,32 +1,61 @@
-# telegram-export
----------------
+telegram-export
+===============
 
 **Database schema:**
 
 ![Schema image](/schema.png)
 
-# Usage
+Usage
+=====
 
-First, copy config.ini.example to config.ini and edit some values. To write your whitelist, you may want to refer to the output of `./telegram-export --list-dialogs` to get dialog IDs or `./telegram-export --search <query>` to filter the results. Then run `./telegram-export` and allow it to dump data.
+First, copy config.ini.example to config.ini and edit some values.
+To write your whitelist, you may want to refer to the output of
+`./telegram-export --list-dialogs` to get dialog IDs or
+`./telegram-export --search <query>` to filter the results.
+Then run `./telegram-export` and allow it to dump data.
 
-# telegram-export vs telegram-history-dump
 
- - SQLite instead of jsonlines allows for far more powerful queries and better efficiency but loses compatibility with text-manipulating UNIX tools as the data is not stored as text.
+telegram-export vs telegram-history-dump
+========================================
 
- - telegram-export's stored data is less complicated than history-dump's json dumps
+> *(For brevity we'll just refer them to as "export" and "dump")*
 
- - Support for saving the history of a person or other dialog, so you can see eg. what their name was over time.
+- SQLite instead of jsonlines allows for far more powerful queries and better
+  efficiency but loses compatibility with text-manipulating UNIX tools as the
+  data is not stored as text, or even more powerful tools like
+  [`jq`](https://stedolan.github.io/jq/).
 
- - Using telethon instead of tg-cli allows support for newer Telegram features like pinned messages and user bios, and avoids the tg-cli bug which made dumping channels impossible, as well as several other tg-cli annoyances.
+- export's stored data is less complicated than dump's json dumps
 
- - No support for service messages yet, which history-dump does support.
+- Support for saving the history of a person or other dialog, so you can see
+  e.g. what their name was over time.
 
- - export will dump participants lists, which history-dump does not do.
+- Using [`telethon`](https://github.com/LonamiWebs/Telethon) instead of
+  [`tg-cli`](https://github.com/vysheng/tg) allows support for newer Telegram
+  features like pinned messages and user bios, and avoids the `tg-cli` bug
+  which made dumping channels impossible, as well as several other `tg-cli`
+  annoyances (such as being somewhat harder to install).
 
-# Limitations
+- No support for service messages yet, which dump does support.
 
- - Currently sort of unfinished. It dumps things, but the schema may change and we won't support old schema transitions. At the moment, we also do not yet dump admin logs or participant lists or a few other things which we plan to do.
+- export will dump participants lists, which dump does not do.
 
- - Certain information is not dumped for simplicity's sake. For example, edited messages won't be re-downloaded and there is currently no support for multiple versions of a message in the db.
 
- - You cannot use the program as multiple users - it assumes that everything is from the 'viewpoint' of the same user. An easy workaround is to use a different database for each user, which can be achieved by using several config files and the --config-file option of the main program.
+Limitations
+===========
+
+- Currently sort of unfinished. It dumps things, but the schema may change
+  and we won't support old schema transitions. At the moment, we also do
+  not yet dump admin logs or participant lists or a few other things which
+  we plan to do.
+
+- Certain information is not dumped for simplicity's sake. For example,
+  edited messages won't be re-downloaded and there is currently no support
+  for multiple versions of a message in the db. However, this shouldn't be
+  much of an issue, since most edits or deletions are legit and often to
+  fix typos.
+
+- You cannot use the program as multiple users - it assumes that everything
+  is from the "viewpoint" of the same user. An easy workaround is to use a
+  different database for each user, which can be achieved by using several
+  config files and the `--config-file` option of the main program.
