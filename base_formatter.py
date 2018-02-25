@@ -52,9 +52,9 @@ class BaseFormatter:
                 query.append(arg[0])
                 param.append(arg[1])
         if query:
-            return 'WHERE ' + ' AND '.join(query), tuple(param)
+            return ' WHERE ' + ' AND '.join(query), tuple(param)
         else:
-            return '', ()
+            return ' ', ()
 
     @classmethod
     def _fetch_at_date(cls, cur, query, eid, at_date):
