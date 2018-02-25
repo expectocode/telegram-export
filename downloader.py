@@ -1,7 +1,7 @@
 #!/bin/env python3
 import logging
 import os
-from time import sleep
+import time
 
 from telethon.extensions import BinaryReader
 from telethon.tl import types, functions
@@ -109,6 +109,7 @@ class Downloader:
         entities = {}
         while True:
             # TODO How should edits be handled? Always read first two days?
+            start = time.time()
             history = self.client(req)
             entities.update({utils.get_peer_id(c): c for c in history.chats})
             entities.update({utils.get_peer_id(u): u for u in history.users})
@@ -171,13 +172,15 @@ class Downloader:
                 __log__.info('Reached maximum amount of chunks, done.')
                 break
 
-            sleep(1)
             dumper.commit()
+            # 30 request in 30 seconds (sleep a second *between* requests)
+            time.sleep(max(1 - (time.time() - start), 0))
         dumper.commit()
 
         __log__.info('Done. Retrieving full information about entities.')
         # TODO Save their profile picture
         for i, entity in enumerate(entities.values(), start=1):
+            start = time.time()
             __log__.debug('Dumping entity {}, {}/{} ({:.1%})'.format(
                 utils.get_display_name(entity),
                 i, len(entities), i / len(entities)
@@ -187,18 +190,17 @@ class Downloader:
                     # Otherwise, the empty first name causes an IntegrityError
                     continue
                 full_user = self.client(functions.users.GetFullUserRequest(entity))
-                sleep(0.5)
                 photo_id = dumper.dump_media(full_user.profile_photo)
                 dumper.dump_user(full_user, photo_id=photo_id)
 
             elif isinstance(entity, types.Chat):
+                start = None
                 photo_id = dumper.dump_media(entity.photo)
                 dumper.dump_chat(entity, photo_id=photo_id)
 
             elif isinstance(entity, types.Channel):
                 full = self.client(functions.channels.GetFullChannelRequest(entity))
                 assert isinstance(full, types.messages.ChatFull)
-                sleep(0.5)
                 photo_id = dumper.dump_media(full.full_chat.chat_photo)
                 # TODO Maybe just pass messages.ChatFull to dumper...
                 if entity.megagroup:
@@ -210,6 +212,9 @@ class Downloader:
                 __log__.info('Ignoring entity %s', entity)
 
             dumper.commit()
+            if start:
+                # 30 request in 30 seconds (sleep a second *between* requests)
+                time.sleep(max(1 - (time.time() - start), 0))
 
         __log__.info('Dump with %s finished', target)
 
