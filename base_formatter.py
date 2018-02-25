@@ -25,8 +25,14 @@ class BaseFormatter:
     A class to extract data from a given telegram-export database in the form
     of named tuples.
     """
-    def __init__(self, db_name):
-        self.dbconn = sqlite3.connect('file:{}?mode=ro'.format(db_name), uri=True)
+    def __init__(self, db):
+        if isinstance(db, str):
+            self.dbconn = sqlite3.connect('file:{}?mode=ro'.format(db), uri=True)
+        elif isinstance(db, sqlite3.Connection):
+            self.dbconn = db
+        else:
+            raise TypeError('Invalid database object given: %s', type(db))
+
         self.our_userid = self.dbconn.execute(
             "SELECT UserID FROM SelfInformation").fetchone()[0]
 
