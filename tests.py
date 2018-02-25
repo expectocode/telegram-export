@@ -11,6 +11,7 @@ from telethon.errors import (
 )
 from telethon.tl import functions, types
 
+from base_formatter import BaseFormatter
 from downloader import Downloader
 from dumper import Dumper
 
@@ -225,6 +226,43 @@ class TestDumpAll(unittest.TestCase):
         )
         dumper.dump_supergroup(channel_full, channel, photo_id=None)
         dumper.dump_channel(channel_full, channel, photo_id=None)
+
+    def test_formatter_methods(self):
+        """
+        Ensures that the BaseFormatter is able to fetch the expected
+        entities when using a date parameter.
+        """
+        chat = types.Chat(
+            id=123,
+            title='Some title',
+            photo=types.ChatPhotoEmpty(),
+            participants_count=7,
+            date=datetime.now(),
+            version=1
+        )
+        dumper = Dumper({'DBFileName': ':memory:'})
+        dumper.conn.execute("INSERT INTO SelfInformation VALUES (?)", (777,))
+
+        fmt = BaseFormatter(dumper.conn)
+        for month in range(1, 13):
+            dumper.dump_chat(chat, None, timestamp=int(datetime(
+                year=2010, month=month, day=1
+            ).timestamp()))
+        dumper.commit()
+        cid = utils.get_peer_id(chat)
+        # Default should get the most recent version
+        date = fmt.get_chat(cid).date_updated
+        assert date == int(datetime(year=2010, month=12, day=1).timestamp())
+
+        # Expected behaviour is to get the previous available date
+        target = int(datetime(year=2010, month=6, day=29).timestamp())
+        date = fmt.get_chat(cid, target).date_updated
+        assert date == int(datetime(year=2010, month=6, day=1).timestamp())
+
+        # Expected behaviour is to get the next date if previous unavailable
+        target = int(datetime(year=2009, month=12, day=1).timestamp())
+        date = fmt.get_chat(cid, target).date_updated
+        assert date == int(datetime(year=2010, month=1, day=1).timestamp())
 
 
 if __name__ == '__main__':
