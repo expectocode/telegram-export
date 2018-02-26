@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Utility to extract data from a telegram-export database"""
-from collections import namedtuple
-import sqlite3
 import datetime
+import math
+import sqlite3
+from collections import namedtuple
 
 from telethon import utils
 from telethon.tl import types
-
 
 Message = namedtuple('Message', (
     'id', 'context_id', 'date', 'from_id', 'text', 'reply_message_id',
@@ -69,8 +69,8 @@ class BaseFormatter:
         if etype == types.PeerChannel:
             if str(eid).startswith('-100'):
                 return eid
-            # Math magic to append -100 at start. See telethon/utils.py get_peer_id.
-            return -(i + pow(10, math.floor(math.log10(i) + 3)))
+            # Append -100 at start. See telethon/utils.py get_peer_id.
+            return -(eid + pow(10, math.floor(math.log10(eid) + 3)))
 
     @staticmethod
     def get_display_name(entity):
