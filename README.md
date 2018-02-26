@@ -52,6 +52,9 @@ telegram-export vs [telegram-history-dump](https://github.com/tvdstaaij/telegram
     - participant lists
 	- admin logs
 
+- Closer interaction with the Telegram API theoretically allows big speed
+  improvements (Practical comparison of times soon™)
+
 - export's database file is bound to a user (like dump), and the program will
   exit if you login as another person to avoid mixing things up. If you do use
   export with multiple users, you should specify a different database for each

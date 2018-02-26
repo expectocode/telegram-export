@@ -281,7 +281,6 @@ class Dumper:
             self.commit()
 
     def dump_message(self, message, context_id, forward_id, media_id):
-        # TODO handle edits/deletes (fundamental problems with non-long-running exporter)
         """Dump a Message into the Message table
         The caller is responsible for ensuring to_id is a unique and correct contextID
         Params:

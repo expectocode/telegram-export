@@ -200,7 +200,6 @@ class Downloader:
 
         found = dumper.get_message_count(target_id)
         while True:
-            # TODO How should edits be handled? Always read first two days?
             start = time.time()
             history = self.client(req)
 
@@ -208,8 +207,10 @@ class Downloader:
             entity_downloader.extend_pending(
                 itertools.chain(history.users, history.chats)
             )
-            # Since the flood waits to get full and get history are the same,
-            # we can interlace them to "double" the speed (are independent).
+            # Since the flood waits we would get from spamming GetFullX and
+            # GetHistory are the same and are independent of each other, we can
+            # ignore the 'recommended' sleep from pop_pending and use the later
+            # sleep (1 - time_taken) for both of these (halving time taken here).
             entity_downloader.pop_pending()
 
             for m in history.messages:

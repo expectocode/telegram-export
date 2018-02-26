@@ -28,6 +28,7 @@ OutputDirectory = .
 ; DBFileName = export
 DBFileName = export
 
+# Amount of time after which an unchanged user should be dumped anyway
 # See explanation for 'Invalidation time'. In minutes.
 ; ForceNoChangeDumpAfter = 7200
 ForceNoChangeDumpAfter = 7200
@@ -66,9 +67,10 @@ MaxSize = 1MB
 
 # Sets the log level used across the entire dumper. Supported values
 # are the same available in the "logging" module. Defaults to DEBUG.
+# Available levels: ERROR, WARNING, DEBUG, INFO, NOTSET
 ; LogLevel = DEBUG
 LogLevel = DEBUG
 
-# Sets the log level used accross libaries (excluding the dumper).
+# Sets the log level used across libaries (excluding the dumper).
 ; LibraryLogLevel = WARNING
 LibraryLogLevel = WARNING
