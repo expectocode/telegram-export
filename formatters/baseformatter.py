@@ -209,7 +209,7 @@ class BaseFormatter:
         cur.execute(
             "SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
             "ForwardID, PostAuthor, ViewCount, MediaID, Formatting "
-            "FROM Message {} ORDER BY DATE {}".format(where, order.upper()),
+            "FROM Message {} ORDER BY Date {}".format(where, order.upper()),
             params
         )
         row = cur.fetchone()
@@ -217,7 +217,8 @@ class BaseFormatter:
             return
         out = self.our_userid == row[3]
         while row:
-            yield Message(*row, out)
+            msg = Message(*row, out)
+            yield msg._replace(date=datetime.datetime.fromtimestamp(msg.date))
             row = cur.fetchone()
             if not row:
                 return
@@ -232,7 +233,7 @@ class BaseFormatter:
         if not message.reply_message_id:
             return None, None
 
-        msg = self.get_message_id(context_id, message.reply_message_id)
+        msg = self.get_message_by_id(context_id, message.reply_message_id)
         if msg:
             try:
                 return self.get_user(msg.from_id), msg
@@ -241,7 +242,7 @@ class BaseFormatter:
 
         return None, None
 
-    def get_message_id(self, context_id, msg_id):
+    def get_message_by_id(self, context_id, msg_id):
         """
         Returns the unique message with the given context and message ID.
         Returns ``None`` if the message has not been dumped.
@@ -259,7 +260,8 @@ class BaseFormatter:
         row = cur.fetchone()
         if row:
             out = self.our_userid == row[3]
-            return Message(*row, out)
+            msg = Message(*row, out)
+            return msg._replace(date=datetime.datetime.fromtimestamp(msg.date))
 
     def iter_context_ids(self):
         """
@@ -309,7 +311,8 @@ class BaseFormatter:
         row = self._fetch_at_date(cur, query, uid, at_date)
         if not row:
             raise ValueError("No user with ID {} in database".format(uid))
-        return User(*row)
+        user = User(*row)
+        return user._replace(date_updated=datetime.datetime.fromtimestamp(user.date_updated))
 
     def get_channel(self, cid, at_date=None):
         """
@@ -327,7 +330,8 @@ class BaseFormatter:
         row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
             raise ValueError("No channel with ID {} in database".format(cid))
-        return Channel(*row)
+        channel = Channel(*row)
+        return channel._replace(date_updated=datetime.datetime.fromtimestamp(channel.date_updated))
 
     def get_supergroup(self, sid, at_date=None):
         """
@@ -345,7 +349,8 @@ class BaseFormatter:
         row = self._fetch_at_date(cur, query, sid, at_date)
         if not row:
             raise ValueError("No supergroup with ID {} in database".format(sid))
-        return Supergroup(*row)
+        supergroup = Supergroup(*row)
+        return supergroup._replace(date_updated=datetime.datetime.fromtimestamp(supergroup.date_updated))
 
     def get_chat(self, cid, at_date=None):
         """
@@ -363,7 +368,8 @@ class BaseFormatter:
         row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
             raise ValueError("No chat with ID {} in database".format(cid))
-        return Chat(*row)
+        chat = Chat(*row)
+        return chat._replace(date_updated=datetime.datetime.fromtimestamp(chat.date_updated))
 
     def get_media(self, mid):
         """Return the Media with given ID or raise ValueError."""

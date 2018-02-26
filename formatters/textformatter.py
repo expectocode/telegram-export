@@ -27,8 +27,7 @@ class TextFormatter(BaseFormatter):
             else:
                 reply = ''
 
-            when = datetime.datetime.fromtimestamp(message.date)
-            when = when.strftime('[%d.%m.%y %H.%M.%S]')
+            when = message.date.strftime('[%d.%m.%y %H.%M.%S]')
             print('{}, {}:{} {}'.format(
                 who, when, reply or '', message.text
             ), file=file)
