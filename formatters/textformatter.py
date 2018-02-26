@@ -1,6 +1,4 @@
-import os
-import re
-
+"""A Formatter class to output pure text"""
 import datetime
 
 from formatters import BaseFormatter
@@ -9,10 +7,8 @@ from formatters import BaseFormatter
 class TextFormatter(BaseFormatter):
     """A Formatter class to output pure text"""
 
-    def _format(self, context_id, file):
-        """
-        Format the given context as text. If context_id is not set, format all saved contexts
-        """
+    def _format(self, context_id, file, *args, **kwargs):
+        """Format the given context as text and output to 'file'"""
         entity = self.get_entity(context_id)
         name = self.get_display_name(entity) or 'unnamed'
 
