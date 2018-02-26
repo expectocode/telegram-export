@@ -3,7 +3,11 @@
 import datetime
 import math
 import sqlite3
+import sys
+from pathlib import Path
 from collections import namedtuple
+from abc import abstractmethod
+from io import TextIOWrapper
 
 from telethon import utils
 from telethon.tl import types
@@ -149,6 +153,40 @@ class BaseFormatter:
         cur.execute('{} {} ORDER BY DateUpdated ASC'
                     .format(query, where), query_params)
         return cur.fetchone()
+
+    def format(self, target, file, *args, **kwargs):
+        """
+        The public method to format target contexts and output them to 'file'.
+        Target should be an individual Context ID. File can be a filename or file-like
+        object. If it is falsey, it will be interpreted as stdout.
+        """
+        if not file:
+            file = sys.stdout
+        elif isinstance(file, (str, Path)):
+            file = open(file, 'w')
+        elif not isinstance(file, TextIOWrapper):  # Is there a better way?
+            raise TypeError("Supplied file {} could not be interpreted as a file".format(
+                file))
+
+        with file:
+            if isinstance(target, int):
+                return self._format(target, file, *args, **kwargs)
+            if isinstance(target, (User, Chat, Channel, Supergroup)):
+                return self._format(target.id, file, *args, **kwargs)
+
+        raise TypeError("target should be a context ID or context namedtuple")
+
+    @abstractmethod
+    def _format(self, context_id, file, *args, **kwargs):
+        """
+        An abstract method that should be implemented by formatters
+        Context ID will always be a Bot API style ID. File will always be
+        something like a file object or sys.stdout, suitable for usage with
+        print(file=file).
+        """
+        # TODO provide a way to format many targets into one directory with one
+        # method, and a format syntax to specify the name scheme of the output files.
+        pass
 
     def get_messages_from_context(self, context_id, start_date=None, end_date=None,
                                   from_user_id=None, order='DESC'):
