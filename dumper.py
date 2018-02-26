@@ -588,17 +588,6 @@ class Dumper:
                 )
             """.format(which=which), (context_id,)).fetchone())
 
-    def iter_messages(self, context_id):
-        """Iterates over the messages on context_id, in ascending order"""
-        c = self.conn.execute(
-            """SELECT * FROM Message WHERE ContextID = ? ORDER BY ID ASC""",
-            (context_id,)
-        )
-        msg = c.fetchone()
-        while msg:
-            yield self.message_from_tuple(msg)
-            msg = c.fetchone()
-
     def get_message_count(self, context_id):
         """Gets the message count for the given context"""
         tuple_ = self.conn.execute(
@@ -659,98 +648,6 @@ class Dumper:
         Commits the changes made to the database to persist on disk.
         """
         self.conn.commit()
-
-    def message_from_tuple(self, message_tuple):
-        if not message_tuple:
-            return
-
-        c = self.conn.cursor()
-        c.execute("SELECT * FROM Forward WHERE ID = ?",
-                  (message_tuple[6],))
-        fwd = Dumper.fwd_from_tuple(c.fetchone())
-
-        c.execute("SELECT * FROM Media WHERE ID = ?",
-                  (message_tuple[9],))
-        loc = Dumper.location_from_tuple(c.fetchone())
-        if loc == types.InputFileLocation:
-            media = types.MessageMediaPhoto(
-                caption=message_tuple[4],
-                photo=types.Photo(
-                    id=0,
-                    access_hash=0,
-                    date=None,
-                    sizes=[types.PhotoSize(
-                        type='',
-                        location=loc,
-                        w=0,
-                        h=0,
-                        size=0
-                    )]
-                )
-            )
-        elif loc == types.InputDocumentFileLocation:
-            media = types.MessageMediaDocument(
-                caption=message_tuple[4],
-                document=types.Document(
-                    id=loc.id,
-                    access_hash=loc.access_hash,
-                    version=loc.version,
-                    dc_id=0,
-                    mime_type='',
-                    date=None,
-                    size=0,
-                    thumb=None,
-                    attributes=[]
-                )
-            )
-        else:
-            media = None
-
-        # ContextID often matches with to_id, except for incoming PMs
-        to_id, to_type = resolve_id(message_tuple[1])
-        return types.Message(
-            id=message_tuple[0],
-            to_id=to_type(to_id),
-            date=datetime.fromtimestamp(message_tuple[2]),
-            from_id=message_tuple[3],
-            message=message_tuple[4],
-            reply_to_msg_id=message_tuple[5],
-            fwd_from=fwd,
-            post_author=message_tuple[7],
-            views=message_tuple[8],
-            media=media,  # Cannot exactly reconstruct it
-            entities=self._decode_entities(message_tuple[10])
-        )
-
-    @staticmethod
-    def fwd_from_tuple(fwd_tuple):
-        if not fwd_tuple:
-            return
-
-        return types.MessageFwdHeader(
-            date=datetime.fromtimestamp(fwd_tuple[1]),
-            from_id=fwd_tuple[2],
-            channel_post=fwd_tuple[3],
-            post_author=fwd_tuple[4]
-        )
-
-    @staticmethod
-    def location_from_tuple(loc_tuple):
-        if not loc_tuple:
-            return
-
-        if loc_tuple[4] == InputFileType.NORMAL.value:
-            return types.InputFileLocation(
-                local_id=loc_tuple[1],
-                volume_id=loc_tuple[2],
-                secret=loc_tuple[3]
-            )
-        elif loc_tuple[4] == InputFileType.DOCUMENT.value:
-            return types.InputDocumentFileLocation(
-                id=loc_tuple[1],
-                version=loc_tuple[2],
-                access_hash=loc_tuple[3]
-            )
 
     @staticmethod
     def rows_are_same(row2, row1, ignore_column):
