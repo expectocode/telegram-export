@@ -156,7 +156,8 @@ class Downloader:
                     photo_id = dumper.dump_media(full_user.profile_photo)
                     dumper.dump_user(full_user, photo_id=photo_id)
 
-                elif isinstance(ent, types.Channel):
+                elif isinstance(ent, types.Channel) and not ent.left:
+                    # Otherwise, getFullChannel raises ChannelPrivateError
                     full = self.client(
                         functions.channels.GetFullChannelRequest(ent))
                     # TODO Maybe just pass messages.ChatFull to dumper...
@@ -245,7 +246,7 @@ class Downloader:
                 photo_id = dumper.dump_media(full_user.profile_photo)
                 dumper.dump_user(full_user, photo_id=photo_id)
 
-            elif isinstance(entity, types.Channel):
+            elif isinstance(entity, types.Channel) and not entity.left:
                 full = self.client(functions.channels.GetFullChannelRequest(entity))
                 photo_id = dumper.dump_media(full.full_chat.chat_photo)
                 if entity.megagroup:
