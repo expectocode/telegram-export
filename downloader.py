@@ -1,4 +1,5 @@
 #!/bin/env python3
+import itertools
 import logging
 import os
 import time
@@ -14,6 +15,80 @@ __log__ = logging.getLogger(__name__)
 VALID_TYPES = {
     'photo', 'document', 'video', 'audio', 'sticker', 'voice'
 }
+
+
+class _EntityDownloader:
+    """
+    Helper class to concisely keep track on which entities need to be
+    dumped, which already have been dumped, and a function to dump them.
+    """
+    def __init__(self, client, dumper):
+        self.client = client
+        self.dumper = dumper
+        self._pending = deque()
+        self._pending_ids = set()
+        self._dumped_ids = set()
+
+    def extend_pending(self, entities):
+        """Extends the queue of pending entities."""
+        for entity in entities:
+            if isinstance(entity, types.User):
+                if entity.deleted or entity.min:
+                    continue  # Empty name would cause IntegrityError
+            elif isinstance(entity, types.Chat):
+                # No need to queue these, extra request not needed
+                self._dump_entity(entity)
+                continue
+            elif isinstance(entity, types.Channel):
+                if entity.left:
+                    continue  # Getting full info triggers ChannelPrivateError
+            else:
+                # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
+                continue
+            eid = utils.get_peer_id(entity)
+            if eid not in self._dumped_ids and not eid in self._pending_ids:
+                self._pending_ids.add(eid)
+                self._pending.append(entity)
+
+    def _dump_entity(self, entity):
+        needed_sleep = 1
+        eid = utils.get_peer_id(entity)
+
+        __log__.debug('Dumping entity %s', utils.get_display_name(entity))
+        if isinstance(entity, types.User):
+            full = self.client(functions.users.GetFullUserRequest(entity))
+            photo_id = self.dumper.dump_media(full.profile_photo)
+            self.dumper.dump_user(full, photo_id=photo_id)
+
+        elif isinstance(entity, types.Chat):
+            needed_sleep = 0
+            photo_id = self.dumper.dump_media(entity.photo)
+            self.dumper.dump_chat(entity, photo_id=photo_id)
+
+        elif isinstance(entity, types.Channel):
+            full = self.client(functions.channels.GetFullChannelRequest(entity))
+            photo_id = self.dumper.dump_media(full.full_chat.chat_photo)
+            if entity.megagroup:
+                self.dumper.dump_supergroup(full.full_chat, entity, photo_id)
+            else:
+                self.dumper.dump_channel(full.full_chat, entity, photo_id)
+
+        self._pending_ids.discard(eid)
+        self._dumped_ids.add(eid)
+        return needed_sleep
+
+    def __bool__(self):
+        return bool(self._pending)
+
+    def __len__(self):
+        return len(self._pending)
+
+    def pop_pending(self):
+        """Pops a pending entity off the queue and returns needed sleep."""
+        if self._pending:
+            return self._dump_entity(self._pending.popleft())
+        else:
+            return 0
 
 
 class Downloader:
@@ -109,65 +184,19 @@ class Downloader:
             __log__.info('Resuming at %s (%s)', req.offset_date, req.offset_id)
 
         found = dumper.get_message_count(target_id)
-
-        pending_entities = deque()
-        pending_entity_ids = set()
-        dumped_entity_ids = set()
+        entity_downloader = _EntityDownloader(self.client, dumper)
         while True:
             # TODO How should edits be handled? Always read first two days?
             start = time.time()
             history = self.client(req)
 
             # Queue users and chats for dumping
-            for user in history.users:
-                if not isinstance(user, types.User):
-                    # Ignore UserEmpty
-                    continue
-                i = utils.get_peer_id(user)
-                if i not in dumped_entity_ids and not i in pending_entity_ids:
-                    pending_entity_ids.add(i)
-                    pending_entities.append(user)
-
-            for chat in history.chats:
-                if not isinstance(chat, (types.Chat, types.Channel)):
-                    # Ignore ChatEmpty, ChatForbidden and ChannelForbidden
-                    continue
-                if isinstance(chat, types.Chat):
-                    photo_id = dumper.dump_media(chat.photo)
-                    dumper.dump_chat(chat, photo_id=photo_id)
-                    continue
-                i = utils.get_peer_id(chat)
-                if i not in dumped_entity_ids and not i in pending_entity_ids:
-                    pending_entity_ids.add(i)
-                    pending_entities.append(chat)
-
+            entity_downloader.extend_pending(
+                itertools.chain(history.users, history.chats)
+            )
             # Since the flood waits to get full and get history are the same,
             # we can interlace them to "double" the speed (are independent).
-            if pending_entities:
-                ent = pending_entities.popleft()
-                i = utils.get_peer_id(ent)
-                pending_entity_ids.remove(i)
-
-                __log__.debug('Dumping entity %s', utils.get_display_name(ent))
-                if isinstance(ent, types.User) and not (ent.deleted or ent.min):
-                    # Otherwise, empty first name causes an IntegrityError
-                    full_user = self.client(
-                        functions.users.GetFullUserRequest(ent))
-                    photo_id = dumper.dump_media(full_user.profile_photo)
-                    dumper.dump_user(full_user, photo_id=photo_id)
-
-                elif isinstance(ent, types.Channel) and not ent.left:
-                    # Otherwise, getFullChannel raises ChannelPrivateError
-                    full = self.client(
-                        functions.channels.GetFullChannelRequest(ent))
-                    # TODO Maybe just pass messages.ChatFull to dumper...
-                    photo_id = dumper.dump_media(full.full_chat.chat_photo)
-                    if ent.megagroup:
-                        dumper.dump_supergroup(full.full_chat, ent, photo_id)
-                    else:
-                        dumper.dump_channel(full.full_chat, ent, photo_id)
-
-                dumped_entity_ids.add(i)
+            entity_downloader.pop_pending()
 
             for m in history.messages:
                 if isinstance(m, types.Message):
@@ -234,37 +263,14 @@ class Downloader:
 
         __log__.info(
             'Done. Retrieving full information about {} missing entities.'
-            .format(len(pending_entities))
+            .format(len(entity_downloader))
         )
         # TODO Save their profile picture
-        while pending_entities:
+        while entity_downloader:
             start = time.time()
-            entity = pending_entities.popleft()
-            __log__.debug('Dumping entity %s', utils.get_display_name(entity))
-            if isinstance(entity, types.User) and not (entity.deleted or entity.min):
-                full_user = self.client(functions.users.GetFullUserRequest(entity))
-                photo_id = dumper.dump_media(full_user.profile_photo)
-                dumper.dump_user(full_user, photo_id=photo_id)
-
-            elif isinstance(entity, types.Channel) and not entity.left:
-                full = self.client(functions.channels.GetFullChannelRequest(entity))
-                photo_id = dumper.dump_media(full.full_chat.chat_photo)
-                if entity.megagroup:
-                    dumper.dump_supergroup(full.full_chat, entity, photo_id=photo_id)
-                else:
-                    dumper.dump_channel(full.full_chat, entity, photo_id=photo_id)
-
-            else:
-                # Note that Chats are always dumped inmediatly as
-                # there's no relevant "full" information about them.
-                __log__.info('Ignoring entity %s', entity)
-
+            needed_sleep = entity_downloader.pop_pending()
             dumper.commit()
-            if start:
-                # 30 request in 30 seconds (sleep a second *between* requests).
-                # Not optimal since get full user/channel are independent,
-                # but the users and channels are saved ordered.
-                time.sleep(max(1 - (time.time() - start), 0))
+            time.sleep(max(needed_sleep - (time.time() - start), 0))
 
         __log__.info('Dump with %s finished', target)
 
