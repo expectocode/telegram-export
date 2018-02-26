@@ -273,7 +273,6 @@ class Dumper:
         result = cur.fetchone()
         if result:
             if result[0] != self_id:
-                print(result, self_id)
                 print('This export database belongs to another user!',
                       file=sys.stderr)
                 exit(1)
