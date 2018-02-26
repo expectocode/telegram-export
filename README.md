@@ -16,7 +16,7 @@ Then run `./telegram-export` and allow it to dump data.
 
 
 telegram-export vs [telegram-history-dump](https://github.com/tvdstaaij/telegram-history-dump)
-========================================
+==============================================================================================
 
 > *(For brevity we'll just refer them to as "export" and "dump")*
 
