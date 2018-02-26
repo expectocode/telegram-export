@@ -4,6 +4,8 @@ import string
 import time
 import unittest
 from datetime import datetime, timedelta
+import shutil
+from pathlib import Path
 
 from telethon import TelegramClient, utils
 from telethon.extensions import markdown
@@ -12,13 +14,12 @@ from telethon.errors import (
 )
 from telethon.tl import functions, types
 
-from base_formatter import BaseFormatter
+from formatters import BaseFormatter
 from downloader import Downloader
 from dumper import Dumper
 
 # Configuration as to which tests to run
-ALLOW_NETWORK = False
-
+ALLOW_NETWORK = True
 
 def gen_username(length):
     """Generates a random username of max length "length" (minimum 4)"""
@@ -56,6 +57,30 @@ def login_client(client, username):
 
 
 class TestDumpAll(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.dumper_config = {'DBFileName': 'test_db', 'OutputDirectory': 'test_work_dir',
+                             'MaxSize': 0}
+        # TODO test with different configurations
+
+        assert not Path(cls.dumper_config['OutputDirectory']).exists()
+
+        Path(cls.dumper_config['OutputDirectory']).mkdir()
+
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        config = config['TelegramAPI']
+
+        cls.client = TelegramClient(None, config['ApiId'], config['ApiHash'])
+        login_client(cls.client, gen_username(10))
+
+        dumper = Dumper(cls.dumper_config)
+        dumper.check_self_user(cls.client.get_me().id)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dumper_config['OutputDirectory'])
+
     def test_interrupted_dump(self):
         """
         This method will ensure that all messages are retrieved even
@@ -64,15 +89,7 @@ class TestDumpAll(unittest.TestCase):
         if not ALLOW_NETWORK:
             raise unittest.SkipTest('Network tests are disabled')
 
-        config = configparser.ConfigParser()
-        config.read('config.ini')
-        config = config['TelegramAPI']
-
-        client = TelegramClient(None, config['ApiId'], config['ApiHash'])
-        login_client(client, gen_username(10))
-        my_id = client.get_me().id
-
-        dumper = Dumper({'DBFileName': ':memory:'})
+        dumper = Dumper(self.dumper_config)
         dumper.chunk_size = 1
         SEND, DUMP = True, False
         actions = (
@@ -91,15 +108,15 @@ class TestDumpAll(unittest.TestCase):
             (1, DUMP),
         )
 
-        client(functions.messages.DeleteHistoryRequest('me', 0))
-        downloader = Downloader(client, {'MaxSize': 0})
+        self.client(functions.messages.DeleteHistoryRequest('me', 0))
+        downloader = Downloader(self.client, self.dumper_config)
 
         which = 1
         for amount, what in actions:
             if what is SEND:
                 print('Sending', amount, 'messages...')
                 for _ in range(amount):
-                    client.send_message('me', str(which))
+                    self.client.send_message('me', str(which))
                     which += 1
                     time.sleep(1)
             else:
@@ -108,27 +125,29 @@ class TestDumpAll(unittest.TestCase):
                 dumper.max_chunks = chunks
                 downloader.save_messages(dumper, 'me')
 
-        messages = client.get_message_history('me', limit=None)
+        messages = self.client.get_message_history('me', limit=None)
         print('Full history')
         for msg in reversed(messages):
             print('ID:', msg.id, '; Message:', msg.message)
 
         print('Dumped history')
-        dumped = list(dumper.iter_messages(my_id))
+        fmt = BaseFormatter(dumper.conn)
+        my_id = self.client.get_me().id
+        dumped = list(fmt.get_messages_from_context(my_id, order='DESC'))
         for msg in dumped:
-            print('ID:', msg.id, '; Message:', msg.message)
+            print('ID:', msg.id, '; Message:', msg.text)
 
         print('Asserting dumped history matches...')
         assert len(messages) == len(dumped), 'Not all messages were dumped'
-        assert all(a.id == b.id and a.message == b.message
-                   for a, b in zip(reversed(messages), dumped)),\
+        assert all(a.id == b.id and a.message == b.text
+                   for a, b in zip(messages, dumped)),\
             'Dumped messages do not match'
 
         print('All good! Test passed!')
-        client.disconnect()
+        self.client.disconnect()
 
     def test_dump_methods(self):
-        dumper = Dumper({'DBFileName': ':memory:'})
+        dumper = Dumper(self.dumper_config)
         message = types.Message(
             id=777,
             to_id=types.PeerUser(123),
@@ -241,12 +260,13 @@ class TestDumpAll(unittest.TestCase):
             date=datetime.now(),
             message='No entities'
         )
-        dumper = Dumper({'DBFileName': ':memory:'})
+        dumper = Dumper(self.dumper_config)
+        fmt = BaseFormatter(dumper.conn)
 
         # Test with no entities
         dumper.dump_message(message, 123, None, None)
         dumper.commit()
-        assert not dumper.get_message(123, 'MIN').entities
+        assert not next(fmt.get_messages_from_context(123, order='DESC')).formatting
 
         # Test with many entities
         text, entities = markdown.parse(
@@ -262,6 +282,7 @@ class TestDumpAll(unittest.TestCase):
         message.entities = entities
         dumper.dump_message(message, 123, None, None)
         dumper.commit()
+        # TODO make this entity test work with our new Formatting format
         assert dumper.get_message(123, 'MAX').entities == message.entities
 
     def test_formatter_get_chat(self):
@@ -277,8 +298,7 @@ class TestDumpAll(unittest.TestCase):
             date=datetime.now(),
             version=1
         )
-        dumper = Dumper({'DBFileName': ':memory:'})
-        dumper.check_self_user(777)
+        dumper = Dumper(self.dumper_config)
 
         fmt = BaseFormatter(dumper.conn)
         for month in range(1, 13):
@@ -305,8 +325,7 @@ class TestDumpAll(unittest.TestCase):
         """
         Ensures that the BaseFormatter is able to correctly yield messages.
         """
-        dumper = Dumper({'DBFileName': ':memory:'})
-        dumper.check_self_user(123)
+        dumper = Dumper(self.dumper_config)
         msg = types.Message(
             id=1,
             to_id=123,
