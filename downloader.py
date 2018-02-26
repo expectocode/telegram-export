@@ -185,10 +185,11 @@ class Downloader:
             try:
                 __log__.info('Getting participants...')
                 participants = self.client.get_participants(target)
-                entity_downloader.extend_pending(participants)
                 added, removed = dumper.dump_participants_delta(
                     target_id, ids=[x.id for x in participants]
                 )
+                entity_downloader.extend_pending([p for p in participants if
+                    p.id in added or p.id in removed])
                 __log__.info('Saved %d new members, %d left the chat.',
                              len(added), len(removed))
             except ChatAdminRequiredError:
