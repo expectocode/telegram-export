@@ -12,13 +12,7 @@ from telethon import TelegramClient, utils
 from dumper import Dumper
 from downloader import Downloader
 
-# TODO make log level a config option
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG)
-logging.getLogger('telethon').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 NO_USERNAME = '<no username>'
@@ -34,6 +28,15 @@ def load_config(filename):
     # Load from file
     config = configparser.ConfigParser()
     config.read(filename)
+
+    # Check logging level (let it raise on invalid)
+    level = (config['Dumper'].get('LogLevel') or 'DEBUG').upper()
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=getattr(logging, level)
+    )
+    level = (config['Dumper'].get('LibraryLogLevel') or 'WARNING').upper()
+    logging.getLogger('telethon').setLevel(getattr(logging, level))
 
     # Convert default output dir '.' to script dir
     if config['Dumper']['OutputDirectory'] == '.':

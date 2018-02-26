@@ -63,3 +63,12 @@ MediaWhitelist = photo, sticker
 # Note that this only applies to documents (everything but normal photos).
 ; MaxSize = 1MB
 MaxSize = 1MB
+
+# Sets the log level used across the entire dumper. Supported values
+# are the same available in the "logging" module. Defaults to DEBUG.
+; LogLevel = DEBUG
+LogLevel = DEBUG
+
+# Sets the log level used accross libaries (excluding the dumper).
+; LibraryLogLevel = WARNING
+LibraryLogLevel = WARNING
