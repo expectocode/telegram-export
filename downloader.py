@@ -6,6 +6,7 @@ import time
 from collections import deque
 
 from telethon import utils
+from telethon.errors import ChatAdminRequiredError
 from telethon.extensions import BinaryReader
 from telethon.tl import types, functions
 
@@ -179,12 +180,25 @@ class Downloader:
         else:
             target_id = utils.get_peer_id(target)
 
+        entity_downloader = _EntityDownloader(self.client, dumper)
+        if isinstance(target, (types.InputPeerChat, types.InputPeerChannel)):
+            try:
+                __log__.info('Getting participants...')
+                participants = self.client.get_participants(target)
+                entity_downloader.extend_pending(participants)
+                added, removed = dumper.dump_participants_delta(
+                    target_id, ids=[x.id for x in participants]
+                )
+                __log__.info('Saved %d new members, %d left the chat.',
+                             len(added), len(removed))
+            except ChatAdminRequiredError:
+                __log__.info('Getting participants aborted (not admin).')
+
         req.offset_id, req.offset_date, stop_at = dumper.get_resume(target_id)
         if req.offset_id:
             __log__.info('Resuming at %s (%s)', req.offset_date, req.offset_id)
 
         found = dumper.get_message_count(target_id)
-        entity_downloader = _EntityDownloader(self.client, dumper)
         while True:
             # TODO How should edits be handled? Always read first two days?
             start = time.time()

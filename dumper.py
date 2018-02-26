@@ -166,6 +166,14 @@ class Dumper:
                        "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
                        "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
+            c.execute("CREATE TABLE ChatParticipants("
+                      "ContextID INT NOT NULL,"
+                      "DateUpdated INT NOT NULL,"
+                      "Added TEXT NOT NULL,"
+                      "Removed TEXT NOT NULL,"
+                      "Delta INT NOT NULL,"
+                      "PRIMARY KEY (ContextID, DateUpdated)) WITHOUT ROWID")
+
             c.execute("CREATE TABLE Message("
                       "ID INT NOT NULL,"
                       "ContextID INT NOT NULL,"
@@ -377,6 +385,43 @@ class Dumper:
                              migrated_to_id,
                              photo_id)
                             )
+
+    def dump_participants_delta(self, context_id, ids):
+        """
+        Dumps the delta between the last dump of IDs for the given context ID
+        and the current input user IDs.
+        """
+        ids = set(ids)
+        c = self.conn.cursor()
+        c.execute('SELECT Added, Removed FROM ChatParticipants '
+                  'ORDER BY DateUpdated ASC')
+
+        row = c.fetchone()
+        if not row:
+            delta = 0
+            added = ids
+            removed = set()
+        else:
+            delta = 1
+            # Build the last known list of participants from the saved deltas
+            last_ids = set(int(x) for x in row[0].split(','))
+            row = c.fetchone()
+            while row:
+                added = set(int(x) for x in row[0].split(','))
+                removed = set(int(x) for x in row[1].split(','))
+                last_ids = (last_ids | added) - removed
+                row = c.fetchone()
+            added = ids - last_ids
+            removed = last_ids - ids
+
+        c.execute("INSERT INTO ChatParticipants VALUES (?, ?, ?, ?, ?)", (
+            context_id,
+            round(time.time()),
+            ','.join(str(x) for x in added),
+            ','.join(str(x) for x in removed),
+            delta
+        ))
+        return added, removed
 
     def dump_media(self, media, media_type=None):
         """Dump a MessageMedia into the Media table
