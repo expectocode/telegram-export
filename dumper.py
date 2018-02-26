@@ -273,6 +273,7 @@ class Dumper:
         result = cur.fetchone()
         if result:
             if result[0] != self_id:
+                print(result, self_id)
                 print('This export database belongs to another user!',
                       file=sys.stderr)
                 exit(1)
@@ -575,18 +576,19 @@ class Dumper:
                              forward.channel_post,
                              forward.post_author))
 
-    def get_message(self, context_id, which):
+    def get_message_id(self, context_id, which):
         """Returns MAX or MIN message available for context_id.
         Used to determine at which point a backup should stop."""
         if which not in ('MIN', 'MAX'):
             raise ValueError('Parameter', which, 'must be MIN or MAX.')
 
-        return self.message_from_tuple(self.conn.execute(
+        return self.conn.execute(
             """SELECT * FROM Message WHERE ID = (
                     SELECT {which}(ID) FROM Message
                     WHERE ContextID = ?
                 )
-            """.format(which=which), (context_id,)).fetchone())
+            """.format(which=which), (context_id,)).fetchone()[0]
+        # May raise if nothing was retrieved
 
     def get_message_count(self, context_id):
         """Gets the message count for the given context"""

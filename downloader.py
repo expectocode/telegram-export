@@ -247,8 +247,8 @@ class Downloader:
                 # Receiving less messages than the limit means we have reached
                 # the end, so we need to exit. Next time we'll start from offset
                 # 0 again so we can check for new messages.
-                max_msg = dumper.get_message(target_id, 'MAX')
-                dumper.save_resume(target_id, stop_at=max_msg.id)
+                max_msg_id = dumper.get_message_id(target_id, 'MAX')
+                dumper.save_resume(target_id, stop_at=max_msg_id)
                 break
 
             # We dump forward (message ID going towards 0), so as soon
@@ -256,8 +256,8 @@ class Downloader:
             # the highest ID ("closest" bound we need to reach), stop.
             if req.offset_id <= stop_at:
                 __log__.info('Reached already-dumped messages, done.')
-                max_msg = dumper.get_message(target_id, 'MAX')
-                dumper.save_resume(target_id, stop_at=max_msg.id)
+                max_msg_id = dumper.get_message_id(target_id, 'MAX')
+                dumper.save_resume(target_id, stop_at=max_msg_id)
                 break
 
             # Keep track of the last target ID (smallest one),
