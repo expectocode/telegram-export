@@ -186,6 +186,44 @@ class BaseFormatter:
                 return
             out = self.our_userid == row[3]
 
+    def get_reply(self, context_id, message: Message):
+        """
+        Helper method to return a tuple consisting of the (User, Message)
+        that the input message was replying to. Either the User or both
+        will be None, if these haven't been dumped.
+        """
+        if not message.reply_message_id:
+            return None, None
+
+        msg = self.get_message_id(context_id, message.reply_message_id)
+        if msg:
+            try:
+                return self.get_user(msg.from_id), msg
+            except ValueError:
+                return None, msg
+
+        return None, None
+
+    def get_message_id(self, context_id, msg_id):
+        """
+        Returns the unique message with the given context and message ID.
+        Returns ``None`` if the message has not been dumped.
+        """
+        where, params = self._build_query(
+            ('ContextID = ?', context_id),
+            ('ID = ?', msg_id)
+        )
+        cur = self.dbconn.cursor()
+        cur.execute(
+            "SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
+            "ForwardID, PostAuthor, ViewCount, MediaID, Formatting "
+            "FROM Message {}".format(where), params
+        )
+        row = cur.fetchone()
+        if row:
+            out = self.our_userid == row[3]
+            return Message(*row, out)
+
     def iter_context_ids(self):
         """
         Iterates over all the context IDs available. This method should
