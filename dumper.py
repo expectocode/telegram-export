@@ -171,7 +171,6 @@ class Dumper:
                       "DateUpdated INT NOT NULL,"
                       "Added TEXT NOT NULL,"
                       "Removed TEXT NOT NULL,"
-                      "Delta INT NOT NULL,"
                       "PRIMARY KEY (ContextID, DateUpdated)) WITHOUT ROWID")
 
             c.execute("CREATE TABLE Message("
@@ -398,11 +397,9 @@ class Dumper:
 
         row = c.fetchone()
         if not row:
-            delta = 0
             added = ids
             removed = set()
         else:
-            delta = 1
             # Build the last known list of participants from the saved deltas
             last_ids = set(int(x) for x in row[0].split(','))
             row = c.fetchone()
@@ -414,12 +411,11 @@ class Dumper:
             added = ids - last_ids
             removed = last_ids - ids
 
-        c.execute("INSERT INTO ChatParticipants VALUES (?, ?, ?, ?, ?)", (
+        c.execute("INSERT INTO ChatParticipants VALUES (?, ?, ?, ?)", (
             context_id,
             round(time.time()),
             ','.join(str(x) for x in added),
-            ','.join(str(x) for x in removed),
-            delta
+            ','.join(str(x) for x in removed)
         ))
         return added, removed
 
