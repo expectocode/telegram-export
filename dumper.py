@@ -5,6 +5,7 @@ import logging
 import sqlite3
 import sys
 import time
+import utils
 from base64 import b64encode
 from datetime import datetime
 from enum import Enum
@@ -202,63 +203,6 @@ class Dumper:
         tables or somehow transfer the data between what canged.
         """
 
-    @staticmethod
-    def _encode_entities(entities):
-        if not entities:
-            return None
-        mapping = {
-            types.MessageEntityPre: 'pre',
-            types.MessageEntityCode: 'code',
-            types.MessageEntityBold: 'bold',
-            types.MessageEntityItalic: 'italic',
-            types.MessageEntityTextUrl: 'texturl',
-            types.MessageEntityMentionName: 'mentionname'
-        }
-        parsed = []
-        for entity in entities:
-            if type(entity) in mapping:
-                if isinstance(entity, types.MessageEntityTextUrl):
-                    extra = ',{}'.format(
-                        entity.url.replace(',', '%2c').replace(';', '%3b')
-                    )
-                elif isinstance(entity, types.MessageEntityMentionName):
-                    extra = ',{}'.format(entity.user_id)
-                else:
-                    extra = ''
-                parsed.append('{},{},{}{}'.format(
-                    mapping[type(entity)], entity.offset, entity.length, extra
-                ))
-        return ';'.join(parsed)
-
-    @staticmethod
-    def _decode_entities(string):
-        if not string:
-            return None
-        mapping = {
-            'pre': types.MessageEntityPre,
-            'code': types.MessageEntityCode,
-            'bold': types.MessageEntityBold,
-            'italic': types.MessageEntityItalic,
-            'texturl': types.MessageEntityTextUrl,
-            'mentionname': types.MessageEntityMentionName
-        }
-        parsed = []
-        for part in string.split(';'):
-            split = part.split(',')
-            kind, offset, length = split[0], int(split[1]), int(split[2])
-            if kind in mapping:
-                if kind == 'texturl':
-                    parsed.append(types.MessageEntityTextUrl(
-                        offset, length, split[-1]
-                    ))
-                elif kind == 'mentionname':
-                    parsed.append(types.MessageEntityMentionName(
-                        offset, length, int(split[-1])
-                    ))
-                else:
-                    parsed.append(mapping[kind](offset, length))
-        return parsed
-
     def check_self_user(self, self_id):
         """
         Checks the self ID. If there is a stored ID and it doesn't match the
@@ -299,7 +243,7 @@ class Dumper:
                              message.post_author,
                              message.views,
                              media_id,
-                             self._encode_entities(message.entities))
+                             utils.encode_msg_entities(message.entities))
                            )
 
     def dump_message_service(self, message, media_id):

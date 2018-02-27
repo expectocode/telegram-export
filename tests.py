@@ -1,22 +1,23 @@
 import configparser
 import random
+import shutil
 import string
 import time
 import unittest
 from datetime import datetime, timedelta
-import shutil
 from pathlib import Path
 
-from telethon import TelegramClient, utils
-from telethon.extensions import markdown
+from telethon import TelegramClient, utils as tl_utils
 from telethon.errors import (
     PhoneNumberOccupiedError, SessionPasswordNeededError
 )
+from telethon.extensions import markdown
 from telethon.tl import functions, types
 
-from formatters import BaseFormatter
+import utils
 from downloader import Downloader
 from dumper import Dumper
+from formatters import BaseFormatter
 
 # Configuration as to which tests to run
 ALLOW_NETWORK = False
@@ -285,7 +286,7 @@ class TestDumpAll(unittest.TestCase):
         dumper.dump_message(message, 123, None, None)
         dumper.commit()
         msg = next(fmt.get_messages_from_context(123, order='ASC'))
-        assert dumper._decode_entities(msg.formatting) == message.entities
+        assert utils.decode_msg_entities(msg.formatting) == message.entities
 
     def test_formatter_get_chat(self):
         """
@@ -308,7 +309,7 @@ class TestDumpAll(unittest.TestCase):
                 year=2010, month=month, day=1
             ).timestamp()))
         dumper.commit()
-        cid = utils.get_peer_id(chat)
+        cid = tl_utils.get_peer_id(chat)
         # Default should get the most recent version
         date = fmt.get_chat(cid).date_updated
         assert date == datetime(year=2010, month=12, day=1)
