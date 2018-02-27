@@ -15,7 +15,12 @@ from telethon.tl import types
 
 Message = namedtuple('Message', (
     'id', 'context_id', 'date', 'from_id', 'text', 'reply_message_id',
-    'forward_id', 'post_author', 'view_count', 'media_id', 'formatting', 'out'
+    'forward_id', 'post_author', 'view_count', 'media_id', 'formatting', 'out',
+    'reply_message',  # An attribute that may be None if there was no reply, a
+    # Message namedtuple if there was a reply, or () if there was a reply but
+    # we don't have it in the database.
+    'context', # A User, Channel, Supergroup, or Chat
+    'from_user', # A User or None if a channel message
 ))
 
 User = namedtuple('User', (
@@ -229,16 +234,11 @@ class BaseFormatter:
             params
         )
         row = cur.fetchone()
-        if not row:
-            return
-        out = self.our_userid == row[3]
         while row:
-            msg = Message(*row, out)
-            yield msg._replace(date=datetime.datetime.fromtimestamp(msg.date))
+            yield self._message_from_row(row)
             row = cur.fetchone()
             if not row:
                 return
-            out = self.our_userid == row[3]
 
     def get_reply(self, context_id, message: Message):
         """
@@ -258,6 +258,45 @@ class BaseFormatter:
 
         return None, None
 
+    def _message_from_row(self, row):
+        """
+        Take a row (ID, ContextID, Date, FromID, Text, ReplyMessageID,
+        ForwardID, PostAuthor, ViewCount, MediaID, Formatting) and add the
+        values for out, reply_message, context, and from_user. Also replace
+        date UTC timestamp with date UTC datetime. Return a Message.
+        Something slightly worrying: if there is a chain of many replies, this
+        is quite inefficient. If the chain is > 1000, possible recursion error.
+        """
+        # TODO forwards, media
+        out = row[3] == self.our_userid
+        if row[5]:  # ReplyMessageID
+            reply = self.get_message_by_id(row[1], row[5])
+        else:
+            reply = None
+        context = self.get_entity(row[1])
+        if row[3]:  # FromID
+            from_user = self.get_user(row[3])
+        else:
+            from_user = None
+        date = datetime.datetime.fromtimestamp(row[2])
+
+        return Message(row[0], # ID
+                       row[1], # ContextID
+                       date,
+                       row[3], # FromID
+                       row[4], # Text
+                       row[5], # ReplyMessageID
+                       row[6], # ForwardID
+                       row[7], # PostAuthor
+                       row[8], # ViewCount
+                       row[9], # MediaID
+                       row[10], # Formatting
+                       out,
+                       reply,
+                       context,
+                       from_user)
+
+
     def get_message_by_id(self, context_id, msg_id):
         """
         Returns the unique message with the given context and message ID.
@@ -275,9 +314,7 @@ class BaseFormatter:
         )
         row = cur.fetchone()
         if row:
-            out = self.our_userid == row[3]
-            msg = Message(*row, out)
-            return msg._replace(date=datetime.datetime.fromtimestamp(msg.date))
+            return self._message_from_row(row)
 
     def iter_context_ids(self):
         """
