@@ -19,7 +19,8 @@ from downloader import Downloader
 from dumper import Dumper
 
 # Configuration as to which tests to run
-ALLOW_NETWORK = True
+ALLOW_NETWORK = False
+
 
 def gen_username(length):
     """Generates a random username of max length "length" (minimum 4)"""
@@ -278,12 +279,13 @@ class TestDumpAll(unittest.TestCase):
             entities[3].offset, entities[3].length, 123
         )
         message.id = 2
+        message.date -= timedelta(days=1)
         message.message = text
         message.entities = entities
         dumper.dump_message(message, 123, None, None)
         dumper.commit()
-        # TODO make this entity test work with our new Formatting format
-        assert dumper.get_message(123, 'MAX').entities == message.entities
+        msg = next(fmt.get_messages_from_context(123, order='ASC'))
+        assert dumper._decode_entities(msg.formatting) == message.entities
 
     def test_formatter_get_chat(self):
         """
