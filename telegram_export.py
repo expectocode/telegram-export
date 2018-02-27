@@ -43,13 +43,17 @@ def load_config(filename):
         config['Dumper']['OutputDirectory'] = SCRIPT_DIR
     os.makedirs(config['Dumper']['OutputDirectory'], exist_ok=True)
 
+    # Ensure that we have a format for the media filename
+    if 'MediaFilenameFmt' not in config['Dumper']:
+        config['Dumper']['MediaFilenameFmt'] = '{name}/{type}/{filename}{ext}'
+
     # Convert minutes to seconds
     config['Dumper']['ForceNoChangeDumpAfter'] = str(
         config['Dumper'].getint('ForceNoChangeDumpAfter', 7200) * 60)
 
     # Convert size to bytes
     max_size = config['Dumper'].get('MaxSize') or '1MB'
-    m = re.match(r'\s*(\d+(?:\.\d*)?)\s*([kmg]?b)?\s*', max_size, re.IGNORECASE)
+    m = re.match(r'(\d+(?:\.\d*)?)\s*([kmg]?b)?', max_size, re.IGNORECASE)
     if not m:
         raise ValueError('Invalid file size given for MaxSize')
 
@@ -70,7 +74,8 @@ def parse_args():
                         help='list dialogs and exit')
 
     parser.add_argument('--search-dialogs', type=str, dest='search_string',
-                        help='like --list-dialogs but searches for a dialog by name/username/phone')
+                        help='like --list-dialogs but searches for a dialog '
+                             'by name/username/phone')
 
     parser.add_argument('--config-file', default=None,
                         help='specify a config file. Default config.ini')

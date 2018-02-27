@@ -24,6 +24,34 @@ PhoneNumber = xxxxxxxxxx
 # Leave as . to dump things in the folder with the script, or put an absolute path.
 OutputDirectory = .
 
+# The format string to be used when downloading media. You can use any literal
+# string you wish in the name, relative names (including directories, separated
+# by the '/' character) or absolute paths. Anything inside {} will be replaced
+# with a proper value, and possible placeholders are:
+# {id}          - Message ID
+# {sender_id}   - Sender ID
+# {context_id}  - Context ID
+# {name}        - Sanitized name of the context (chat)
+# {filename}    - Sanitized file of the name
+# {sender_name} - Sanitized sender name
+# {type}        - The media type (e.g. photo, document, video...)
+# {ext}         - The extension of the file (*including* the dot)
+#
+# For instance, you could do:
+#   MediaFilenameFmt = "usermedia/{name}/{type}/{filename}{ext}"
+#
+# That would save files under "usermedia/Chat Name/media type/media file.ext".
+# The extension will be added automatically if you forget it. Invalid format
+# specifiers will be ignored and left blank.
+#
+# To format the date of the mesage, you can use the format specifiers
+# described under the following link anywhere you wish:
+# https://docs.python.org/3.5/library/datetime.html#strftime-and-strptime-behavior
+#
+# You are responsible for making sure that the filenames are unique enough.
+; MediaFilenameFmt = "usermedia/{name}/{type}/{filename}{ext}"
+MediaFilenameFmt = "usermedia/{name}/{type}/{filename}{ext}"
+
 # Database filename (without '.db')
 ; DBFileName = export
 DBFileName = export

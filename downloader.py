@@ -3,7 +3,7 @@ import itertools
 import logging
 import os
 import time
-from collections import deque
+from collections import deque, defaultdict
 
 from telethon import utils
 from telethon.errors import ChatAdminRequiredError
@@ -102,9 +102,40 @@ class Downloader:
         self.types = {x.strip().lower()
                       for x in (config.get('MediaWhitelist') or '').split(',')
                       if x.strip()}
-        self.media_folder = os.path.join(config['OutputDirectory'], 'usermedia')
-        # TODO make 'usermedia' a config option
+        self.media_fmt = os.path.join(config['OutputDirectory'],
+                                      config['MediaFilenameFmt'])
         assert all(x in VALID_TYPES for x in self.types)
+        if self.types:
+            self.types.add('unknown')  # Always allow "unknown" media types
+
+    @staticmethod
+    def _get_media_type(media):
+        """
+        Returns the friendly type string for the given MessageMedia.
+        """
+        if not media:
+            return ''
+        if isinstance(media, types.MessageMediaPhoto):
+            return 'photo'
+        elif isinstance(media, types.MessageMediaDocument):
+            if not isinstance(media, types.Document):
+                return False
+            for attr in media.attributes:
+                if isinstance(attr, types.DocumentAttributeSticker):
+                    return 'sticker'
+                elif isinstance(attr, types.DocumentAttributeVideo):
+                    return 'video'
+                elif isinstance(attr, types.DocumentAttributeAudio):
+                    if attr.voice:
+                        return 'voice'
+                    return 'audio'
+            if 'document':
+                return False
+        return 'unknown'
+
+    @staticmethod
+    def _get_media_extension(media):
+        pass
 
     def check_media(self, media):
         """
@@ -114,61 +145,64 @@ class Downloader:
             return False
         if not self.types:
             return True
+        return self._get_media_type(media) in self.types
 
+    def download_media(self, msg, target_id, entities):
+        """
+        Save media to disk using the self.media_fmt under OutputDirectory.
+
+        The entities parameter must be a dictionary consisting of {id: entity}
+        and it *has* to contain the IDs for sender_id and context_id.
+        """
+        media = msg.media
         if isinstance(media, types.MessageMediaPhoto):
-            if 'photo' not in self.types:
-                return False
+            if isinstance(media.photo, types.PhotoEmpty):
+                return None
         elif isinstance(media, types.MessageMediaDocument):
-            if not isinstance(media, types.Document):
-                return False
-            for attr in media.attributes:
-                if isinstance(attr, types.DocumentAttributeSticker):
-                    return 'sticker' in self.types
-                elif isinstance(attr, types.DocumentAttributeVideo):
-                    return 'video' in self.types
-                elif isinstance(attr, types.DocumentAttributeAudio):
-                    if attr.voice:
-                        return 'voice' in self.types
-                    return 'audio' in self.types
-            if 'document' not in self.types:
-                return False
-        return True
-
-    def download_media(self, msg, target_id):
-        """Save media to disk in self.media_folder (under OutputDirectory)."""
-        # TODO Make usermedia/ folder an config option
-        # TODO Make name format string a config option, and consider folders per context
-        if isinstance(msg, types.Message):
-            media = msg.media
+            if isinstance(media.document, types.DocumentEmpty):
+                return None
         else:
-            media = msg
-        os.makedirs(self.media_folder, exist_ok=True)
-        file_name_prefix = os.path.join(self.media_folder,
-                                        '{}-{}-'.format(target_id, msg.id))
-        if isinstance(media, types.MessageMediaDocument) and not hasattr(
-                media.document, 'stickerset'):
-            try:
-                file_name = file_name_prefix + next(
-                    a for a in media.document.attributes
-                    if isinstance(a, types.DocumentAttributeFilename)
-                ).file_name
-            except StopIteration:
-                file_name = self.media_folder  # Inferred by Telethon
-            return self.client.download_media(msg, file=file_name)
-        elif isinstance(media, types.MessageMediaPhoto):
-            file_name = file_name_prefix + media.photo.date.strftime('photo_%Y-%m-%d_%H-%M-%S.jpg')
-            return self.client.download_media(media, file=file_name)
+            return None
 
-        return None
+        formatter = defaultdict(
+            str,
+            id=msg.id,
+            context_id=target_id,
+            sender_id=msg.from_id or 0,
+            ext=utils.get_extension(media) or '.bin',
+            type=self._get_media_type(media) or 'unknown',
+            name=utils.get_display_name(entities[target_id]) or 'unknown',
+            sender_name=utils.get_display_name(
+                entities.get(msg.from_id)) or 'unknown'
+        )
+        filename = None
+        if isinstance(media, types.MessageMediaDocument):
+            for attr in media.document.attributes:
+                if isinstance(attr, types.DocumentAttributeFilename):
+                    filename = attr.file_name
+
+        formatter['filename'] = filename or media.photo.date.strftime(
+            '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
+        )
+        filename = msg.date.strftime(self.media_fmt).format_map(formatter)
+        if not filename.endswith(formatter['ext']):
+            if filename.endswith('.'):
+                filename = filename[:-1]
+            filename += formatter['ext']
+
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        return self.client.download_media(media, file=filename)
 
     def save_messages(self, dumper, target_id):
         """
         Download and dump messages and media (depending on media config)
         from the target using the dumper, then dump all entities found.
         """
-        target = self.client.get_input_entity(target_id)
+        target_in = self.client.get_input_entity(target_id)
+        target = self.client.get_entity(target_in)
+        target_id = utils.get_peer_id(target)
         req = functions.messages.GetHistoryRequest(
-            peer=target,
+            peer=target_in,
             offset_id=0,
             offset_date=None,
             add_offset=0,
@@ -177,18 +211,14 @@ class Downloader:
             min_id=0,
             hash=0
         )
-        __log__.info('Starting dump with %s', target)
+        __log__.info('Starting dump with %s', utils.get_display_name(target))
         chunks_left = dumper.max_chunks
-        if isinstance(target, types.InputPeerSelf):
-            target_id = self.client.get_me(input_peer=True).user_id
-        else:
-            target_id = utils.get_peer_id(target)
 
         entity_downloader = _EntityDownloader(self.client, dumper)
-        if isinstance(target, (types.InputPeerChat, types.InputPeerChannel)):
+        if isinstance(target_in, (types.InputPeerChat, types.InputPeerChannel)):
             try:
                 __log__.info('Getting participants...')
-                participants = self.client.get_participants(target)
+                participants = self.client.get_participants(target_in)
                 added, removed = dumper.dump_participants_delta(
                     target_id, ids=[x.id for x in participants]
                 )
@@ -208,6 +238,11 @@ class Downloader:
             start = time.time()
             history = self.client(req)
 
+            # Get media needs access to the entities from this batch
+            entities = {utils.get_peer_id(x): x for x in
+                        itertools.chain(history.users, history.chats)}
+            entities[target_id] = target
+
             # Queue users and chats for dumping
             entity_downloader.extend_pending(
                 itertools.chain(history.users, history.chats)
@@ -215,13 +250,13 @@ class Downloader:
             # Since the flood waits we would get from spamming GetFullX and
             # GetHistory are the same and are independent of each other, we can
             # ignore the 'recommended' sleep from pop_pending and use the later
-            # sleep (1 - time_taken) for both of these (halving time taken here).
+            # sleep (1 - time_taken) for both of these, halving time taken here
             entity_downloader.pop_pending()
 
             for m in history.messages:
                 if isinstance(m, types.Message):
                     if self.check_media(m.media):
-                        self.download_media(m, target_id)
+                        self.download_media(m, target_id, entities)
 
                     fwd_id = dumper.dump_forward(m.fwd_from)
                     media_id = dumper.dump_media(m.media)
@@ -292,7 +327,7 @@ class Downloader:
             dumper.commit()
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
-        __log__.info('Dump with %s finished', target)
+        __log__.info('Dump with %s finished', utils.get_display_name(target))
 
     def fetch_dialogs(self, cache_file='dialogs.tl', force=False):
         """Get a list of dialogs, and dump new data from them"""
