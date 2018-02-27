@@ -21,10 +21,15 @@ class TextFormatter(BaseFormatter):
             except ValueError:
                 who = '(???)'
 
-            reply_sender, reply = self.get_reply(context_id, message)
-            if reply:
-                reply_sender = self.get_display_name(reply_sender) or '(???)'
-                reply = ' (in reply to {}\'s: "{}")'.format(reply_sender, reply.text)
+            if message.reply_message is not None:
+                if message.reply_message is ():  # Unlikely, message not dumped
+                    reply, reply_sender = '???', '???'
+                else:
+                    reply_sender = self.get_display_name(
+                            message.reply_message.from_user) or '(???)'
+                    replytext = message.reply_message.text or ''
+                    reply = ' (in reply to {}\'s: "{}")'.format(
+                            reply_sender, replytext)
             else:
                 reply = ''
 

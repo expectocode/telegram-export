@@ -240,24 +240,6 @@ class BaseFormatter:
             if not row:
                 return
 
-    def get_reply(self, context_id, message: Message):
-        """
-        Helper method to return a tuple consisting of the (User, Message)
-        that the input message was replying to. Either the User or both
-        will be None, if these haven't been dumped.
-        """
-        if not message.reply_message_id:
-            return None, None
-
-        msg = self.get_message_by_id(context_id, message.reply_message_id)
-        if msg:
-            try:
-                return self.get_user(msg.from_id), msg
-            except ValueError:
-                return None, msg
-
-        return None, None
-
     def _message_from_row(self, row):
         """
         Take a row (ID, ContextID, Date, FromID, Text, ReplyMessageID,
