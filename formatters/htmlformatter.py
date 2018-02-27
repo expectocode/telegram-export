@@ -4,8 +4,12 @@ Very much unfinished and needs a web designer to work on it.
 """
 from formatters import BaseFormatter
 
+
 class HtmlFormatter(BaseFormatter):
     """A Formatter class to generate HTML"""
+    @staticmethod
+    def name():
+        return 'html'
 
     def output_header(self, file, context):
         """Output the header of the page. Context should be a namedtuple"""

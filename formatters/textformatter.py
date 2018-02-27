@@ -4,6 +4,9 @@ from formatters import BaseFormatter
 
 class TextFormatter(BaseFormatter):
     """A Formatter class to output pure text"""
+    @staticmethod
+    def name():
+        return 'text'
 
     def _format(self, context_id, file, *args, **kwargs):
         """Format the given context as text and output to 'file'"""

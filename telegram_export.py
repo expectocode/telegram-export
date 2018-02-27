@@ -7,10 +7,12 @@ import re
 import argparse
 import os
 
+import sys
 from telethon import TelegramClient, utils
 
 from dumper import Dumper
 from downloader import Downloader
+from formatters import NAME_TO_FORMATTER
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,13 @@ def parse_args():
 
     parser.add_argument('--config-file', default=None,
                         help='specify a config file. Default config.ini')
+
+    # TODO Selectable context ID? They're hard to remember though.
+    #      Would it be a different argument? Format but comma separated?
+    parser.add_argument('--format', type=str,
+                        help='formats the dumped messages with the specified '
+                             'formatter and exits. Valid options are: {}'
+                             .format(', '.join(NAME_TO_FORMATTER)))
     return parser.parse_args()
 
 
@@ -168,8 +177,23 @@ def main():
        Goes through the configured dialogs and dumps them into the database"""
     args = parse_args()
     config = load_config(args.config_file)
+    dumper = Dumper(config['Dumper'])
+
+    if args.format:
+        if args.format not in NAME_TO_FORMATTER:
+            print('Format name "{}" not available"'.format(args.format),
+                  file=sys.stderr)
+            return 1
+
+        formatter = NAME_TO_FORMATTER[args.format](dumper.conn)
+        for cid in formatter.iter_context_ids():
+            formatter.format(cid, config['Dumper']['OutputDirectory'])
+        return
+
     absolute_session_name = os.path.join(
-        config['Dumper']['OutputDirectory'], config['TelegramAPI']['SessionName'])
+        config['Dumper']['OutputDirectory'],
+        config['TelegramAPI']['SessionName']
+    )
     client = TelegramClient(
         absolute_session_name,
         config['TelegramAPI']['ApiId'],
@@ -180,8 +204,6 @@ def main():
         return list_or_search_dialogs(args, client)
 
     downloader = Downloader(client, config['Dumper'])
-    dumper = Dumper(config['Dumper'])
-    config = config['TelegramAPI']
     cache_file = os.path.join(absolute_session_name + '.tl')
     try:
         dumper.check_self_user(client.get_me(input_peer=True).user_id)
@@ -214,4 +236,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    exit(main() or 0)

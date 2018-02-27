@@ -59,6 +59,11 @@ class BaseFormatter:
             "SELECT UserID FROM SelfInformation").fetchone()[0]
 
     @staticmethod
+    @abstractmethod
+    def name():
+        pass
+
+    @staticmethod
     def ensure_id_marked(eid, etype):
         """
         Given an entity ID and type (PeerUser, PeerChat, PeerChannel), return
