@@ -1,6 +1,4 @@
 """A Formatter class to output pure text"""
-import datetime
-
 from formatters import BaseFormatter
 
 

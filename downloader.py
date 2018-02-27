@@ -88,17 +88,20 @@ class _EntityDownloader:
         """Pops a pending entity off the queue and returns needed sleep."""
         if self._pending:
             return self._dump_entity(self._pending.popleft())
-        else:
-            return 0
+        return 0
 
 
 class Downloader:
+    """
+    Download dialogs and their associated data, and dump them.
+    Make Telegram API requests and sleep for the appropriate time.
+    """
     def __init__(self, client, config):
         self.client = client
         self.max_size = int(config['MaxSize'])
         self.types = {x.strip().lower()
-                     for x in (config.get('MediaWhitelist') or '').split(',')
-                     if x.strip()}
+                      for x in (config.get('MediaWhitelist') or '').split(',')
+                      if x.strip()}
         self.media_folder = os.path.join(config['OutputDirectory'], 'usermedia')
         # TODO make 'usermedia' a config option
         assert all(x in VALID_TYPES for x in self.types)
@@ -140,7 +143,8 @@ class Downloader:
         else:
             media = msg
         os.makedirs(self.media_folder, exist_ok=True)
-        file_name_prefix = os.path.join(self.media_folder,'{}-{}-'.format(target_id, msg.id))
+        file_name_prefix = os.path.join(self.media_folder,
+                                        '{}-{}-'.format(target_id, msg.id))
         if isinstance(media, types.MessageMediaDocument) and not hasattr(
                 media.document, 'stickerset'):
             try:
@@ -154,8 +158,8 @@ class Downloader:
         elif isinstance(media, types.MessageMediaPhoto):
             file_name = file_name_prefix + media.photo.date.strftime('photo_%Y-%m-%d_%H-%M-%S.jpg')
             return self.client.download_media(media, file=file_name)
-        else:
-            return None
+
+        return None
 
     def save_messages(self, dumper, target_id):
         """
@@ -278,8 +282,8 @@ class Downloader:
         dumper.commit()
 
         __log__.info(
-            'Done. Retrieving full information about {} missing entities.'
-            .format(len(entity_downloader))
+            'Done. Retrieving full information about %s missing entities.',
+            len(entity_downloader)
         )
         # TODO Save their profile picture
         while entity_downloader:

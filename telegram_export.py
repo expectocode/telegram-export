@@ -164,7 +164,7 @@ def main():
     args = parse_args()
     config = load_config(args.config_file)
     absolute_session_name = os.path.join(
-            config['Dumper']['OutputDirectory'], config['TelegramAPI']['SessionName'])
+        config['Dumper']['OutputDirectory'], config['TelegramAPI']['SessionName'])
     client = TelegramClient(
         absolute_session_name,
         config['TelegramAPI']['ApiId'],

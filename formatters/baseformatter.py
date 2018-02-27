@@ -284,12 +284,12 @@ class BaseFormatter:
         ID, at the given date (like all the specific methods). Context ID must
         be marked in the Bot API style, as with get_messages_from_context.
         """
-        unmarked, kind = utils.resolve_id(context_id)
-        if kind == types.PeerUser:
+        peer_type = utils.resolve_id(context_id)[1]
+        if peer_type == types.PeerUser:
             return self.get_user(context_id, at_date=at_date)
-        elif kind == types.PeerChat:
+        elif peer_type == types.PeerChat:
             return self.get_chat(context_id, at_date=at_date)
-        elif kind == types.PeerChannel:
+        elif peer_type == types.PeerChannel:
             try:
                 return self.get_supergroup(context_id, at_date=at_date)
             except ValueError:
@@ -353,7 +353,8 @@ class BaseFormatter:
         if not row:
             raise ValueError("No supergroup with ID {} in database".format(sid))
         supergroup = Supergroup(*row)
-        return supergroup._replace(date_updated=datetime.datetime.fromtimestamp(supergroup.date_updated))
+        return supergroup._replace(date_updated=datetime.datetime.fromtimestamp(
+            supergroup.date_updated))
 
     def get_chat(self, cid, at_date=None):
         """

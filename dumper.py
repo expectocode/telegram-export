@@ -11,7 +11,7 @@ from enum import Enum
 import os.path
 
 from telethon.tl import types
-from telethon.utils import resolve_id, get_peer_id
+from telethon.utils import get_peer_id
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class Dumper:
             max(int(config.get('ForceNoChangeDumpAfter', 0)), -1)
 
         c.execute("SELECT name FROM sqlite_master "
-                         "WHERE type='table' AND name='Version'")
+                  "WHERE type='table' AND name='Version'")
 
         if c.fetchone():
             # Tables already exist, check for the version
@@ -134,9 +134,7 @@ class Dumper:
             c.execute("CREATE TABLE Channel("
                       "ID INT NOT NULL,"
                       "DateUpdated INT NOT NULL,"
-                      # "CreatorID INT,"
                       "About TEXT,"
-                      # "Signatures INT,"
                       "Title TEXT NOT NULL,"
                       "Username TEXT,"
                       "PictureID INT,"
@@ -147,7 +145,6 @@ class Dumper:
             c.execute("CREATE TABLE Supergroup("
                       "ID INT NOT NULL,"
                       "DateUpdated INT NOT NULL,"
-                      # "CreatorID INT,"
                       "About TEXT,"
                       "Title TEXT NOT NULL,"
                       "Username TEXT,"
@@ -157,14 +154,13 @@ class Dumper:
                       "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
             c.execute("CREATE TABLE Chat("
-                       "ID INT NOT NULL,"
-                       "DateUpdated INT NOT NULL,"
-                       # "CreatorID INT,"
-                       "Title TEXT NOT NULL,"
-                       "MigratedToID INT,"
-                       "PictureID INT,"
-                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                       "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+                      "ID INT NOT NULL,"
+                      "DateUpdated INT NOT NULL,"
+                      "Title TEXT NOT NULL,"
+                      "MigratedToID INT,"
+                      "PictureID INT,"
+                      "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
+                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
 
             c.execute("CREATE TABLE ChatParticipants("
                       "ContextID INT NOT NULL,"
@@ -304,7 +300,7 @@ class Dumper:
                              message.views,
                              media_id,
                              self._encode_entities(message.entities))
-                            )
+                           )
 
     def dump_message_service(self, message, media_id):
         """Dump a MessageService into the ??? table"""
@@ -349,7 +345,7 @@ class Dumper:
                              channel.username,
                              photo_id,
                              channel_full.pinned_msg_id)
-                            )
+                           )
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id, timestamp=None):
         # TODO: Use invalidation time
@@ -365,7 +361,7 @@ class Dumper:
                              supergroup.username,
                              photo_id,
                              supergroup_full.pinned_msg_id)
-                            )
+                           )
 
     def dump_chat(self, chat, photo_id, timestamp=None):
         # TODO: Use invalidation time
@@ -382,7 +378,7 @@ class Dumper:
                              chat.title,
                              migrated_to_id,
                              photo_id)
-                            )
+                           )
 
     def dump_participants_delta(self, context_id, ids):
         """
