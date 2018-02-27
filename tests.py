@@ -309,17 +309,17 @@ class TestDumpAll(unittest.TestCase):
         cid = utils.get_peer_id(chat)
         # Default should get the most recent version
         date = fmt.get_chat(cid).date_updated
-        assert date == int(datetime(year=2010, month=12, day=1).timestamp())
+        assert date == datetime(year=2010, month=12, day=1)
 
         # Expected behaviour is to get the previous available date
-        target = int(datetime(year=2010, month=6, day=29).timestamp())
+        target = datetime(year=2010, month=6, day=29)
         date = fmt.get_chat(cid, target).date_updated
-        assert date == int(datetime(year=2010, month=6, day=1).timestamp())
+        assert date == datetime(year=2010, month=6, day=1)
 
         # Expected behaviour is to get the next date if previous unavailable
-        target = int(datetime(year=2009, month=12, day=1).timestamp())
+        target = datetime(year=2009, month=12, day=1)
         date = fmt.get_chat(cid, target).date_updated
-        assert date == int(datetime(year=2010, month=1, day=1).timestamp())
+        assert date == datetime(year=2010, month=1, day=1)
 
     def test_formatter_get_messages(self):
         """
@@ -344,13 +344,13 @@ class TestDumpAll(unittest.TestCase):
         assert len(list(fmt.get_messages_from_context(123))) == 365
 
         # Assert only messages after a date are returned
-        min_date = int(datetime(year=2010, month=4, day=1).timestamp())
+        min_date = datetime(year=2010, month=4, day=1)
         assert all(m.date >= min_date for m in fmt.get_messages_from_context(
             123, start_date=min_date
         ))
 
         # Assert only messages before a date are returned
-        max_date = int(datetime(year=2010, month=4, day=1).timestamp())
+        max_date = datetime(year=2010, month=4, day=1)
         assert all(m.date <= max_date for m in fmt.get_messages_from_context(
             123, end_date=max_date
         ))
