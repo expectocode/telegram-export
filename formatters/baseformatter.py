@@ -156,12 +156,14 @@ class BaseFormatter:
             ('ID = ?', eid),
             ('DateUpdated <= ?', at_date)
         )
+        # Find the newest dump before the specified date
         cur.execute('{} {} ORDER BY DateUpdated DESC'
                     .format(query, where), query_params)
         row = cur.fetchone()
         if row:
             return row
-
+        # If it wasn't found in a dump from before the specified date, find the
+        # first time it was dumped after that date.
         where, query_params = cls._build_query(
             ('ID = ?', eid),
             ('DateUpdated > ?', at_date)
@@ -322,17 +324,17 @@ class BaseFormatter:
         elif peer_type == types.PeerChat:
             return self.get_chat(context_id, at_date=at_date)
         elif peer_type == types.PeerChannel:
-            try:
-                return self.get_supergroup(context_id, at_date=at_date)
-            except ValueError:
+            supergroup = self.get_supergroup(context_id, at_date=at_date)
+            if not supergroup:
                 return self.get_channel(context_id, at_date=at_date)
+            return supergroup
         else:
             raise ValueError('Invalid ID {} given'.format(context_id))
 
     def get_user(self, uid, at_date=None):
         """
-        Return the user with given ID or raise ValueError. If at_date is set,
-        get the user as they were at the given date (to the best of our knowledge).
+        Return the user with given ID or return None. If at_date is set, get
+        the user as they were at the given date (to the best of our knowledge).
         If it is not set, get the user as we last saw them. at_date should be a UTC
         timestamp or datetime object.
         """
@@ -345,14 +347,14 @@ class BaseFormatter:
         )
         row = self._fetch_at_date(cur, query, uid, at_date)
         if not row:
-            raise ValueError("No user with ID {} in database".format(uid))
+            return None
         user = User(*row)
         return user._replace(date_updated=datetime.datetime.fromtimestamp(user.date_updated))
 
     def get_channel(self, cid, at_date=None):
         """
-        Return the channel with given ID or raise ValueError. If at_date is set,
-        get the channel as it was at the given date (to the best of our knowledge).
+        Return the channel with given ID or return None. If at_date is set, get
+        the channel as it was at the given date (to the best of our knowledge).
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
@@ -364,15 +366,15 @@ class BaseFormatter:
         )
         row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
-            raise ValueError("No channel with ID {} in database".format(cid))
+            return None
         channel = Channel(*row)
         return channel._replace(date_updated=datetime.datetime.fromtimestamp(channel.date_updated))
 
     def get_supergroup(self, sid, at_date=None):
         """
-        Return the supergroup with given ID or raise ValueError. If at_date is set,
-        get the supergroup as it was at the given date (to the best of our knowledge).
-        at_date should be a UTC timestamp or datetime object.
+        Return the supergroup with given ID or return None. If at_date is set,
+        get the supergroup as it was at the given date (to the best of our
+        knowledge). at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
         sid = self.ensure_id_marked(sid, types.PeerChannel)
@@ -383,15 +385,15 @@ class BaseFormatter:
         )
         row = self._fetch_at_date(cur, query, sid, at_date)
         if not row:
-            raise ValueError("No supergroup with ID {} in database".format(sid))
+            return None
         supergroup = Supergroup(*row)
         return supergroup._replace(date_updated=datetime.datetime.fromtimestamp(
             supergroup.date_updated))
 
     def get_chat(self, cid, at_date=None):
         """
-        Return the chat with given ID or raise ValueError. If at_date is set,
-        get the chat as it was at the given date (to the best of our knowledge).
+        Return the chat with given ID or return None. If at_date is set, get
+        the chat as it was at the given date (to the best of our knowledge).
         at_date should be a UTC timestamp or datetime object.
         """
         at_date = self.get_timestamp(at_date)
@@ -403,18 +405,18 @@ class BaseFormatter:
         )
         row = self._fetch_at_date(cur, query, cid, at_date)
         if not row:
-            raise ValueError("No chat with ID {} in database".format(cid))
+            return None
         chat = Chat(*row)
         return chat._replace(date_updated=datetime.datetime.fromtimestamp(chat.date_updated))
 
     def get_media(self, mid):
-        """Return the Media with given ID or raise ValueError."""
+        """Return the Media with given ID or return None."""
         cur = self.dbconn.cursor()
         cur.execute("SELECT ID, Name, MimeType, Size, ThumbnailID, Type, LocalID, "
                     "VolumeID, Secret, Extra FROM Media WHERE ID = ?", (mid,))
         row = cur.fetchone()
         if not row:
-            raise ValueError("No media with ID {} in database".format(mid))
+            return None
         return Media(*row)
 
 # if __name__ == '__main__':

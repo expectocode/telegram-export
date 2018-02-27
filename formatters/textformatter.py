@@ -1,6 +1,7 @@
 """A Formatter class to output pure text"""
 from formatters import BaseFormatter
 
+UNKNOWN_USER_TEXT = '(???)'
 
 class TextFormatter(BaseFormatter):
     """A Formatter class to output pure text"""
@@ -16,17 +17,15 @@ class TextFormatter(BaseFormatter):
         print('== Conversation with "{}" =='.format(name), file=file)
         for message in self.get_messages_from_context(context_id,
                                                       order='ASC'):
-            try:
-                who = self.get_display_name(self.get_user(message.from_id))
-            except ValueError:
-                who = '(???)'
+            who = self.get_display_name(
+                    self.get_user(message.from_id)) or UNKNOWN_USER_TEXT
 
             if message.reply_message is not None:
                 if message.reply_message is ():  # Unlikely, message not dumped
                     reply, reply_sender = '???', '???'
                 else:
                     reply_sender = self.get_display_name(
-                            message.reply_message.from_user) or '(???)'
+                            message.reply_message.from_user) or UNKNOWN_USER_TEXT
                     replytext = message.reply_message.text or ''
                     reply = ' (in reply to {}\'s: "{}")'.format(
                             reply_sender, replytext)
