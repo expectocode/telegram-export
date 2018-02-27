@@ -76,8 +76,7 @@ class BaseFormatter:
             # Append -100 at start. See telethon/utils.py get_peer_id.
             return -(eid + pow(10, math.floor(math.log10(eid) + 3)))
 
-    @staticmethod
-    def get_display_name(entity):
+    def get_display_name(self, entity):
         """
         Get the display name of a Chat, Channel, Supergroup, or User namedtuple,
         or a Bot API marked Context ID. Modeled on telethon/utils.py
