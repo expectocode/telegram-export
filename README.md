@@ -1,6 +1,9 @@
 telegram-export
 ===============
 
+A tool to download Telegram data (users, chats, messages, and media) into a
+ database (and display the saved data).
+
 **Database schema:**
 
 ![Schema image](/schema.png)
@@ -46,7 +49,7 @@ telegram-export vs [telegram-history-dump](https://github.com/tvdstaaij/telegram
   metadata. This allows things like user bios, channel descriptions and profile
   pictures.
     - Pinned messages (dump kind of supports this, but only by saving a message
-  replying to the pinned messaging with text 'pinned the message')
+  replying to the pinned message with text 'pinned the message')
 
 - Planned features which dump does not support (incomplete list):
     - participant lists
