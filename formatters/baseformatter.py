@@ -79,9 +79,10 @@ class BaseFormatter:
     @staticmethod
     def get_display_name(entity):
         """
-        Get the display name of a Chat, Channel, Supergroup, or User namedtuple.
-        Modeled on telethon/utils.py get_display_name. Return '' if there is no name,
-        and raise ValueError if not passed one of the above types.
+        Get the display name of a Chat, Channel, Supergroup, or User namedtuple,
+        or a Bot API marked Context ID. Modeled on telethon/utils.py
+        get_display_name. Return '' if there is no name, and raise ValueError
+        if not passed one of the above types.
         """
         if isinstance(entity, User):
             if entity.first_name and entity.last_name:
@@ -96,6 +97,9 @@ class BaseFormatter:
             if entity.title:
                 return entity.title
             return ''
+
+        if isinstance(entity, int):
+            return self.get_display_name(self.get_entity(entity))
 
         raise ValueError("Cannot get display name of a {} object".format(type(entity)))
 
