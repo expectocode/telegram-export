@@ -9,6 +9,7 @@ from collections import namedtuple
 from abc import abstractmethod
 from io import TextIOWrapper
 
+import os
 from telethon import utils
 from telethon.tl import types
 
@@ -88,6 +89,9 @@ class BaseFormatter:
         get_display_name. Return '' if there is no name, and raise ValueError
         if not passed one of the above types.
         """
+        if not entity:
+            return ''
+
         if isinstance(entity, User):
             if entity.first_name and entity.last_name:
                 return '{} {}'.format(entity.first_name, entity.last_name)
@@ -161,19 +165,23 @@ class BaseFormatter:
                     .format(query, where), query_params)
         return cur.fetchone()
 
-    def format(self, target, file, *args, **kwargs):
+    def format(self, target, file=None, *args, **kwargs):
         """
         The public method to format target contexts and output them to 'file'.
-        Target should be an individual Context ID. File can be a filename or file-like
-        object. If it is falsey, it will be interpreted as stdout.
+        Target should be an individual Context ID. File can be a filename or
+        file-like object. If it is falsey, it will be interpreted as stdout.
         """
         if not file:
             file = sys.stdout
         elif isinstance(file, (str, Path)):
+            if os.path.isdir(file):
+                file = os.path.join(file, str(target))
             file = open(file, 'w')
         elif not isinstance(file, TextIOWrapper):  # Is there a better way?
-            raise TypeError("Supplied file {} could not be interpreted as a file".format(
-                file))
+            raise TypeError(
+                "Supplied file {} could not be interpreted as a file"
+                .format(file)
+            )
 
         with file:
             if isinstance(target, int):
