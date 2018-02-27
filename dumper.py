@@ -251,7 +251,6 @@ class Dumper:
         # ddg.gg/%68%61%68%61%20%79%65%73?ia=images
 
     def dump_user(self, user_full, photo_id, timestamp=None):
-        # TODO: Use invalidation time
         """Dump a UserFull into the User table
         Params: UserFull to dump, MediaID of the profile photo in the DB
         Returns -, or False if not added"""
@@ -266,14 +265,7 @@ class Dumper:
                   user_full.user.bot,
                   user_full.common_chats_count,
                   photo_id)
-
-        last = self.conn.execute(
-            'SELECT * FROM User ORDER BY DateUpdated DESC').fetchone()
-        if (self.rows_are_same(values, last, ignore_column=1)
-                and values[1] - last[1] < int(self.force_no_change_dump_after)):
-            return False
-
-        return self._insert('User', values)
+        self._insert_if_valid_date('User', values, date_column=1)
 
     def dump_channel(self, channel_full, channel, photo_id, timestamp=None):
         """Dump a Channel into the Channel table
@@ -287,14 +279,7 @@ class Dumper:
                   channel.username,
                   photo_id,
                   channel_full.pinned_msg_id)
-
-        last = self.conn.execute(
-            'SELECT * FROM Channel ORDER BY DateUpdated DESC').fetchone()
-        if (self.rows_are_same(values, last, ignore_column=1)
-                and values[1] - last[1] < int(self.force_no_change_dump_after)):
-            return False
-
-        return self._insert('Channel', values)
+        self._insert_if_valid_date('Channel', values, date_column=1)
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id, timestamp=None):
         """Dump a Supergroup into the Supergroup table
@@ -308,14 +293,7 @@ class Dumper:
                   supergroup.username,
                   photo_id,
                   supergroup_full.pinned_msg_id)
-
-        last = self.conn.execute(
-            'SELECT * FROM Supergroup ORDER BY DateUpdated DESC').fetchone()
-        if (self.rows_are_same(values, last, ignore_column=1)
-                and values[1] - last[1] < int(self.force_no_change_dump_after)):
-            return False
-
-        return self._insert('Supergroup', values)
+        return self._insert_if_valid_date('Supergroup', values, date_column=1)
 
     def dump_chat(self, chat, photo_id, timestamp=None):
         """Dump a Chat into the Chat table
@@ -331,14 +309,7 @@ class Dumper:
                   chat.title,
                   migrated_to_id,
                   photo_id)
-
-        last = self.conn.execute(
-            'SELECT * FROM Chat ORDER BY DateUpdated DESC').fetchone()
-        if (self.rows_are_same(values, last, ignore_column=1)
-                and values[1] - last[1] < int(self.force_no_change_dump_after)):
-            return False
-
-        return self._insert('Chat', values)
+        return self._insert_if_valid_date('Chat', values, date_column=1)
 
     def dump_participants_delta(self, context_id, ids):
         """
@@ -585,6 +556,24 @@ class Dumper:
 
         return self._insert('Resume', (context_id, msg, msg_date, stop_at))
 
+    def _insert_if_valid_date(self, into, values, date_column):
+        """
+        Helper method to self._insert(into, values) after checking that the
+        given values are different than the latest dump or that the delta
+        between the current date and the existing column date_column is
+        bigger than the invalidation time.
+        """
+        last = self.conn.execute('SELECT * FROM {} ORDER BY DateUpdated DESC'
+                                 .format(into)).fetchone()
+        if last:
+            delta = values[date_column] - last[date_column]
+            if delta < int(self.force_no_change_dump_after):
+                for i, value in enumerate(values):
+                    if i != date_column and value != last[i]:
+                        return False
+
+        return self._insert(into, values)
+
     def _insert(self, into, values):
         """
         Helper method to insert or replace the
@@ -611,11 +600,4 @@ class Dumper:
         """Compare two records, ignoring the DateUpdated"""
         # Note that sqlite stores True as 1 and False as 0
         # but python handles this fine anyway (probably)
-        if not row1 or not row2:
-            return False
-        if len(row1) != len(row2):
-            return False
-        for i, x in enumerate(row1):
-            if (i != ignore_column) and x != row2[i]:
-                return False
-        return True
+
