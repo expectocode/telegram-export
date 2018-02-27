@@ -276,39 +276,48 @@ class Dumper:
         return self._insert('User', values)
 
     def dump_channel(self, channel_full, channel, photo_id, timestamp=None):
-        # TODO: Use invalidation time
         """Dump a Channel into the Channel table
         Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
         Returns -"""
         # Need to get the full object too for 'about' info
-        return self._insert('Channel',
-                            (get_peer_id(channel),
-                             timestamp or round(time.time()),
-                             channel_full.about,
-                             channel.title,
-                             channel.username,
-                             photo_id,
-                             channel_full.pinned_msg_id)
-                           )
+        values = (get_peer_id(channel),
+                  timestamp or round(time.time()),
+                  channel_full.about,
+                  channel.title,
+                  channel.username,
+                  photo_id,
+                  channel_full.pinned_msg_id)
+
+        last = self.conn.execute(
+            'SELECT * FROM Channel ORDER BY DateUpdated DESC').fetchone()
+        if (self.rows_are_same(values, last, ignore_column=1)
+                and values[1] - last[1] < int(self.force_no_change_dump_after)):
+            return False
+
+        return self._insert('Channel', values)
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id, timestamp=None):
-        # TODO: Use invalidation time
         """Dump a Supergroup into the Supergroup table
         Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
         Returns -"""
         # Need to get the full object too for 'about' info
-        return self._insert('Supergroup',
-                            (get_peer_id(supergroup),
-                             timestamp or round(time.time()),
-                             supergroup_full.about if hasattr(supergroup_full, 'about') else '',
-                             supergroup.title,
-                             supergroup.username,
-                             photo_id,
-                             supergroup_full.pinned_msg_id)
-                           )
+        values = (get_peer_id(supergroup),
+                  timestamp or round(time.time()),
+                  supergroup_full.about if hasattr(supergroup_full, 'about') else '',
+                  supergroup.title,
+                  supergroup.username,
+                  photo_id,
+                  supergroup_full.pinned_msg_id)
+
+        last = self.conn.execute(
+            'SELECT * FROM Supergroup ORDER BY DateUpdated DESC').fetchone()
+        if (self.rows_are_same(values, last, ignore_column=1)
+                and values[1] - last[1] < int(self.force_no_change_dump_after)):
+            return False
+
+        return self._insert('Supergroup', values)
 
     def dump_chat(self, chat, photo_id, timestamp=None):
-        # TODO: Use invalidation time
         """Dump a Chat into the Chat table
         Params: Chat to dump, MediaID of the profile photo in the DB
         Returns -"""
@@ -316,13 +325,20 @@ class Dumper:
             migrated_to_id = chat.migrated_to.channel_id
         else:
             migrated_to_id = None
-        return self._insert('Chat',
-                            (get_peer_id(chat),
-                             timestamp or round(time.time()),
-                             chat.title,
-                             migrated_to_id,
-                             photo_id)
-                           )
+
+        values = (get_peer_id(chat),
+                  timestamp or round(time.time()),
+                  chat.title,
+                  migrated_to_id,
+                  photo_id)
+
+        last = self.conn.execute(
+            'SELECT * FROM Chat ORDER BY DateUpdated DESC').fetchone()
+        if (self.rows_are_same(values, last, ignore_column=1)
+                and values[1] - last[1] < int(self.force_no_change_dump_after)):
+            return False
+
+        return self._insert('Chat', values)
 
     def dump_participants_delta(self, context_id, ids):
         """
