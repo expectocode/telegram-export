@@ -265,10 +265,13 @@ class Downloader:
 
                 elif isinstance(m, types.MessageService):
                     if isinstance(m.action, types.MessageActionChatEditPhoto):
-                        # TODO check media and download it
-                        pass
-
-                    dumper.dump_message_service(m, media_id=None)
+                        media_id = dumper.dump_media(m.action.photo)
+                        if 'chatphoto' in self.types:
+                            pass  # TODO Download
+                    else:
+                        media_id = None
+                    dumper.dump_message_service(m, target_id,
+                                                media_id=media_id)
                 else:
                     __log__.warning('Skipping message %s', m)
                     continue
