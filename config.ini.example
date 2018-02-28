@@ -79,10 +79,11 @@ Whitelist = example, username
 ; MaxChunks = 0
 
 # The file types to download, comma separated. Options are:
-# "photo", "document", "video", "audio", "sticker", "voice".
+# "photo", "document", "video", "audio", "sticker", "voice", "chatphoto".
 # An empty list (default if omitted) means all are allowed.
-; MediaWhitelist = photo, sticker
-MediaWhitelist = photo, sticker
+# Note that "chatphoto" includes profile pictures as well.
+; MediaWhitelist = chatphoto, photo, sticker
+MediaWhitelist = chatphoto, photo, sticker
 
 # The maximum allowed file size for a document before skipping it.
 # For instance, "800KB" will only download files smaller or equal to 800KB.

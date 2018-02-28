@@ -47,7 +47,8 @@ def load_config(filename):
 
     # Ensure that we have a format for the media filename
     if 'MediaFilenameFmt' not in config['Dumper']:
-        config['Dumper']['MediaFilenameFmt'] = '{name}/{type}/{filename}{ext}'
+        config['Dumper']['MediaFilenameFmt'] = \
+            'usermedia/{name}/{type}/{filename}{ext}'
 
     # Convert minutes to seconds
     config['Dumper']['ForceNoChangeDumpAfter'] = str(

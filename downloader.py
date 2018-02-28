@@ -5,6 +5,7 @@ import os
 import time
 from collections import deque, defaultdict
 
+import datetime
 from telethon import utils
 from telethon.errors import ChatAdminRequiredError
 from telethon.extensions import BinaryReader
@@ -14,7 +15,7 @@ __log__ = logging.getLogger(__name__)
 
 
 VALID_TYPES = {
-    'photo', 'document', 'video', 'audio', 'sticker', 'voice'
+    'photo', 'document', 'video', 'audio', 'sticker', 'voice', 'chatphoto'
 }
 
 
@@ -22,10 +23,13 @@ class _EntityDownloader:
     """
     Helper class to concisely keep track on which entities need to be
     dumped, which already have been dumped, and a function to dump them.
+
+    If no photo_fmt is provided, entity photos will not be downloaded.
     """
-    def __init__(self, client, dumper):
+    def __init__(self, client, dumper, photo_fmt=None):
         self.client = client
         self.dumper = dumper
+        self.photo_fmt = photo_fmt
         self._pending = deque()
         self._pending_ids = set()
         self._dumped_ids = set()
@@ -60,11 +64,13 @@ class _EntityDownloader:
             full = self.client(functions.users.GetFullUserRequest(entity))
             photo_id = self.dumper.dump_media(full.profile_photo)
             self.dumper.dump_user(full, photo_id=photo_id)
+            self.download_profile_photo(full.profile_photo, entity)
 
         elif isinstance(entity, types.Chat):
             needed_sleep = 0
             photo_id = self.dumper.dump_media(entity.photo)
             self.dumper.dump_chat(entity, photo_id=photo_id)
+            self.download_profile_photo(entity.photo, entity)
 
         elif isinstance(entity, types.Channel):
             full = self.client(functions.channels.GetFullChannelRequest(entity))
@@ -73,10 +79,69 @@ class _EntityDownloader:
                 self.dumper.dump_supergroup(full.full_chat, entity, photo_id)
             else:
                 self.dumper.dump_channel(full.full_chat, entity, photo_id)
+            self.download_profile_photo(full.full_chat.chat_photo, entity)
 
         self._pending_ids.discard(eid)
         self._dumped_ids.add(eid)
         return needed_sleep
+
+    def download_profile_photo(self, photo, target, known_id=None):
+        """
+        Similar to Downloader.download_media() but for profile photos.
+
+        Has no effect if there is no photo format (thus it is "disabled").
+        """
+        if not self.photo_fmt:
+            return
+
+        date = datetime.datetime.now()
+        if isinstance(photo, (types.UserProfilePhoto, types.ChatPhoto)):
+            if isinstance(photo.photo_big, types.FileLocation):
+                location = photo.photo_big
+            elif isinstance(photo.photo_small, types.FileLocation):
+                location = photo.photo_small
+            else:
+                return
+        elif isinstance(photo, types.Photo):
+            for size in photo.sizes:
+                if isinstance(size, types.PhotoSize):
+                    if isinstance(size.location, types.FileLocation):
+                        location = size.location
+                        break
+            else:
+                return
+            date = photo.date
+            if known_id is None:
+                known_id = photo.id
+        else:
+            return
+
+        if known_id is None:
+            known_id = utils.get_peer_id(target)
+
+        formatter = defaultdict(
+            str,
+            id=known_id,
+            context_id=utils.get_peer_id(target),
+            sender_id=utils.get_peer_id(target),
+            ext='.jpg',
+            type='chatphoto',
+            filename=date.strftime('chatphoto_%Y-%m-%d_%H-%M-%S'),
+            name=utils.get_display_name(target) or 'unknown',
+            sender_name=utils.get_display_name(target) or 'unknown'
+        )
+        filename = date.strftime(self.photo_fmt).format_map(formatter)
+        if not filename.endswith(formatter['ext']):
+            if filename.endswith('.'):
+                filename = filename[:-1]
+            filename += formatter['ext']
+
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        return self.client.download_file(types.InputFileLocation(
+            volume_id=location.volume_id,
+            local_id=location.local_id,
+            secret=location.secret
+        ), file=filename, part_size_kb=256)
 
     def __bool__(self):
         return bool(self._pending)
@@ -214,7 +279,11 @@ class Downloader:
         __log__.info('Starting dump with %s', utils.get_display_name(target))
         chunks_left = dumper.max_chunks
 
-        entity_downloader = _EntityDownloader(self.client, dumper)
+        entity_downloader = _EntityDownloader(
+            self.client,
+            dumper,
+            photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
+        )
         if isinstance(target_in, (types.InputPeerChat, types.InputPeerChannel)):
             try:
                 __log__.info('Getting participants...')
@@ -266,8 +335,9 @@ class Downloader:
                 elif isinstance(m, types.MessageService):
                     if isinstance(m.action, types.MessageActionChatEditPhoto):
                         media_id = dumper.dump_media(m.action.photo)
-                        if 'chatphoto' in self.types:
-                            pass  # TODO Download
+                        entity_downloader.download_profile_photo(
+                            m.action.photo, target, known_id=m.id
+                        )
                     else:
                         media_id = None
                     dumper.dump_message_service(m, target_id,
@@ -326,7 +396,6 @@ class Downloader:
             'Done. Retrieving full information about %s missing entities.',
             len(entity_downloader)
         )
-        # TODO Save their profile picture
         while entity_downloader:
             start = time.time()
             needed_sleep = entity_downloader.pop_pending()
