@@ -479,6 +479,16 @@ class Dumper:
             row['secret'] = media.secret
 
         if row['type']:
+            # We'll say two files are the same if they point to the same
+            # downloadable content (through local_id/volume_id/secret).
+            c = self.conn.cursor()
+            c.execute('SELECT ID FROM Media WHERE LocalID = ? '
+                      'AND VolumeID = ? AND Secret = ?',
+                      (row['local_id'], row['volume_id'], row['secret']))
+            existing_row = c.fetchone()
+            if existing_row:
+                return existing_row[0]
+
             return self._insert('Media', (
                 None,
                 row['name'], row['mime_type'], row['size'],
