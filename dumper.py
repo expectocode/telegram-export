@@ -182,7 +182,8 @@ class Dumper:
                       "ViewCount INT,"
                       "MediaID INT,"
                       "Formatting TEXT,"  # e.g. bold, italic, etc.
-                      "Action TEXT,"  # friendly name if it is a MessageService
+                      "ServiceAction TEXT,"  # friendly name of action if it is
+                      # a MessageService
                       "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
                       "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
                       "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
@@ -353,8 +354,8 @@ class Dumper:
             last_ids = set(int(x) for x in row[0].split(','))
             row = c.fetchone()
             while row:
-                added = set(int(x) for x in row[0].split(','))
-                removed = set(int(x) for x in row[1].split(','))
+                added = set(int(x) for x in row[0].split(',') if x != '')
+                removed = set(int(x) for x in row[1].split(',') if x != '')
                 last_ids = (last_ids | added) - removed
                 row = c.fetchone()
             added = ids - last_ids
@@ -633,4 +634,3 @@ class Dumper:
         """Compare two records, ignoring the DateUpdated"""
         # Note that sqlite stores True as 1 and False as 0
         # but python handles this fine anyway (probably)
-
