@@ -63,7 +63,10 @@ def decode_msg_entities(string):
 
 
 def action_to_name(action):
-    """Returns a namespace'd "friendly" name for the given MessageAction."""
+    """
+    Returns a namespace'd "friendly" name for the given
+    ``MessageAction`` or ``ChannelAdminLogEventAction``.
+    """
     return {
         types.MessageActionChannelCreate: 'channel.create',
         types.MessageActionChannelMigrateFrom: 'channel.migratefrom',
@@ -83,5 +86,22 @@ def action_to_name(action):
         types.MessageActionPaymentSentMe: 'payment.sentme',
         types.MessageActionPhoneCall: 'phone.call',
         types.MessageActionPinMessage: 'pin.message',
-        types.MessageActionScreenshotTaken: 'screenshottaken'
+        types.MessageActionScreenshotTaken: 'screenshottaken',
+
+        types.ChannelAdminLogEventActionChangeAbout: 'change.about',
+        types.ChannelAdminLogEventActionChangePhoto: 'change.photo',
+        types.ChannelAdminLogEventActionChangeStickerSet: 'change.stickerset',
+        types.ChannelAdminLogEventActionChangeTitle: 'change.title',
+        types.ChannelAdminLogEventActionChangeUsername: 'change.username',
+        types.ChannelAdminLogEventActionDeleteMessage: 'delete.message',
+        types.ChannelAdminLogEventActionEditMessage: 'edit.message',
+        types.ChannelAdminLogEventActionParticipantInvite: 'participant.invite',
+        types.ChannelAdminLogEventActionParticipantJoin: 'participant.join',
+        types.ChannelAdminLogEventActionParticipantLeave: 'participant.leave',
+        types.ChannelAdminLogEventActionParticipantToggleAdmin: 'participant.toggleadmin',
+        types.ChannelAdminLogEventActionParticipantToggleBan: 'participant.toggleban',
+        types.ChannelAdminLogEventActionToggleInvites: 'toggle.invites',
+        types.ChannelAdminLogEventActionTogglePreHistoryHidden: 'toggle.prehistoryhidden',
+        types.ChannelAdminLogEventActionToggleSignatures: 'toggle.signatures',
+        types.ChannelAdminLogEventActionUpdatePinned: 'update.pinned',
     }.get(type(action), None)

@@ -404,6 +404,73 @@ class Downloader:
 
         __log__.info('Dump with %s finished', utils.get_display_name(target))
 
+    def save_admin_log(self, dumper, target_id):
+        """
+        Download and dumps the entire available admin log for the given
+        channel. You must have permission to view the admin log for it.
+        """
+        target_in = self.client.get_input_entity(target_id)
+        target = self.client.get_entity(target_in)
+        target_id = utils.get_peer_id(target)
+        req = functions.channels.GetAdminLogRequest(
+            target_in, q='', min_id=0, max_id=0, limit=100
+        )
+        __log__.info('Starting admin log dump for %s',
+                     utils.get_display_name(target))
+
+        # TODO Resume admin log?
+        # Rather silly considering logs only last up to two days and
+        # there isn't much information in them (due to their short life).
+        chunks_left = dumper.max_chunks
+        entity_downloader = _EntityDownloader(
+            self.client,
+            dumper,
+            photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
+        )
+        while True:
+            start = time.time()
+            result = self.client(req)
+            __log__.debug('Downloaded another chunk of the admin log.')
+            entity_downloader.extend_pending(
+                itertools.chain(result.users, result.chats)
+            )
+            entity_downloader.pop_pending()
+            if not result.events:
+                break
+
+            for event in result.events:
+                if isinstance(event.action,
+                              types.ChannelAdminLogEventActionChangePhoto):
+                    media_id1 = dumper.dump_media(event.action.new_photo)
+                    media_id2 = dumper.dump_media(event.action.prev_photo)
+                    entity_downloader.download_profile_photo(
+                        event.action.new_photo, target, event.id
+                    )
+                    entity_downloader.download_profile_photo(
+                        event.action.prev_photo, target, event.id
+                    )
+                else:
+                    media_id1 = None
+                    media_id2 = None
+                dumper.dump_admin_log_event(event, target_id,
+                                            media_id1=media_id1,
+                                            media_id2=media_id2)
+
+            req.max_id = min(e.id for e in result.events)
+            time.sleep(max(1 - (time.time() - start), 0))
+            chunks_left -= 1
+            if chunks_left <= 0:
+                break
+
+        while entity_downloader:
+            start = time.time()
+            needed_sleep = entity_downloader.pop_pending()
+            dumper.commit()
+            time.sleep(max(needed_sleep - (time.time() - start), 0))
+
+        __log__.info('Admin log from %s dumped',
+                     utils.get_display_name(target))
+
     def fetch_dialogs(self, cache_file='dialogs.tl', force=False):
         """Get a list of dialogs, and dump new data from them"""
         # TODO What to do about cache invalidation?

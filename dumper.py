@@ -188,6 +188,19 @@ class Dumper:
                       "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
                       "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
 
+            c.execute("CREATE TABLE AdminLog("
+                      "ID INT NOT NULL,"
+                      "ContextID INT NOT NULL,"
+                      "Date INT NOT NULL,"
+                      "UserID INT,"
+                      "MediaID1 INT,"  # e.g. new photo
+                      "MediaID2 INT,"  # e.g. old photo
+                      "Action TEXT,"  # Friendly name for the action
+                      "Data TEXT,"  # JSON data of the entire action
+                      "FOREIGN KEY (MediaID1) REFERENCES Media(ID),"
+                      "FOREIGN KEY (MediaID2) REFERENCES Media(ID),"
+                      "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
+
             c.execute("CREATE TABLE Resume("
                       "ContextID INT NOT NULL,"
                       "ID INT NOT NULL,"
@@ -272,6 +285,27 @@ class Dumper:
                              media_id,  # Might have e.g. a new chat Photo
                              None,  # No entities
                              name)
+                            )
+
+    def dump_admin_log_event(self, event, context_id, media_id1, media_id2):
+        """Similar to self.dump_message_service but for channel actions."""
+        name = utils.action_to_name(event.action)
+        if not name:
+            return
+
+        extra = event.action.to_dict()
+        del extra['_']  # We don't need to store the type, already have name
+        sanitize_dict(extra)
+        extra = json.dumps(extra)
+        return self._insert('AdminLog',
+                            (event.id,
+                             context_id,
+                             event.date.timestamp(),
+                             event.user_id,
+                             media_id1,
+                             media_id2,
+                             name,
+                             extra)
                            )
 
     def dump_user(self, user_full, photo_id, timestamp=None):
