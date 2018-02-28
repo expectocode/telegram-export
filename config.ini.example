@@ -70,7 +70,8 @@ ForceNoChangeDumpAfter = 7200
 # to wait for lots of dialogs you don't care about to be downloaded. You can
 # get a list of dialogs and their associated IDs by running
 # `telegram-export.py --list-dialogs`
-Whitelist = example, username
+Whitelist = example, username : My friend,
+			-1001132836449: telegram-export group
 
 # Chunk size in which to retrieve messages. 100 (default, max) if not present.
 ; ChunkSize = 100

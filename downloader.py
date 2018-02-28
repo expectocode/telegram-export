@@ -493,7 +493,7 @@ class Downloader:
     def load_entities_from_str(self, string):
         """Helper function to load entities from the config file"""
         for who in string.split(','):
-            who = who.strip()
+            who = who.strip().split(':',1)[0]  # Ignore anything after ':'
             if (not who.startswith('+') and who.isdigit()) or who.startswith('-'):
                 yield self.client.get_input_entity(int(who))
             else:
