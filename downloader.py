@@ -246,7 +246,7 @@ class Downloader:
                 if isinstance(attr, types.DocumentAttributeFilename):
                     filename = attr.file_name
 
-        formatter['filename'] = filename or media.photo.date.strftime(
+        formatter['filename'] = filename or msg.date.strftime(
             '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
         )
         filename = msg.date.strftime(self.media_fmt).format_map(formatter)
