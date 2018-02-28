@@ -16,9 +16,9 @@ from telethon.tl import types
 Message = namedtuple('Message', (
     'id', 'context_id', 'date', 'from_id', 'text', 'reply_message_id',
     'forward_id', 'post_author', 'view_count', 'media_id', 'formatting', 'out',
-    'reply_message',  # An attribute that may be None if there was no reply, a
-    # Message namedtuple if there was a reply, or () if there was a reply but
-    # we don't have it in the database.
+    'service_action', 'reply_message',  # An attribute that may be None if
+    # there was no reply, a Message namedtuple if there was a reply, or () if
+    # there was a reply but we don't have it in the database.
     'context', # A User, Channel, Supergroup, or Chat
     'from_user', # A User or None if a channel message
 ))
@@ -211,7 +211,8 @@ class BaseFormatter:
         pass
 
     def get_messages_from_context(self, context_id, start_date=None, end_date=None,
-                                  from_user_id=None, order='DESC'):
+                                  from_user_id=None, order='DESC',
+                                  include_service=True):
         """
         Yield Messages from a context. Start and end date should be UTC timestamps
         or datetime objects. Note that Channels will never yield any messages if
@@ -229,10 +230,12 @@ class BaseFormatter:
         )
 
         cur = self.dbconn.cursor()
+        exclude_service = '' if include_service else ' AND ServiceAction is null'
         cur.execute(
             "SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
-            "ForwardID, PostAuthor, ViewCount, MediaID, Formatting "
-            "FROM Message {} ORDER BY Date {}".format(where, order.upper()),
+            "ForwardID, PostAuthor, ViewCount, MediaID, Formatting, ServiceAction"
+            " FROM Message {}{} ORDER BY Date {}".format(where, exclude_service,
+                order.upper()),
             params
         )
         row = cur.fetchone()
@@ -245,9 +248,9 @@ class BaseFormatter:
     def _message_from_row(self, row):
         """
         Take a row (ID, ContextID, Date, FromID, Text, ReplyMessageID,
-        ForwardID, PostAuthor, ViewCount, MediaID, Formatting) and add the
-        values for out, reply_message, context, and from_user. Also replace
-        date UTC timestamp with date UTC datetime. Return a Message.
+        ForwardID, PostAuthor, ViewCount, MediaID, Formatting, ServiceAction)
+        and add the values for out, reply_message, context, and from_user. Also
+        replace date UTC timestamp with date UTC datetime. Return a Message.
         Something slightly worrying: if there is a chain of many replies, this
         is quite inefficient. If the chain is > 1000, possible recursion error.
         """
@@ -267,15 +270,16 @@ class BaseFormatter:
         return Message(row[0], # ID
                        row[1], # ContextID
                        date,
-                       row[3], # FromID
-                       row[4], # Text
-                       row[5], # ReplyMessageID
-                       row[6], # ForwardID
-                       row[7], # PostAuthor
-                       row[8], # ViewCount
-                       row[9], # MediaID
+                       row[3],  # FromID
+                       row[4],  # Text
+                       row[5],  # ReplyMessageID
+                       row[6],  # ForwardID
+                       row[7],  # PostAuthor
+                       row[8],  # ViewCount
+                       row[9],  # MediaID
                        row[10], # Formatting
                        out,
+                       row[11], # ServiceAction
                        reply,
                        context,
                        from_user)
@@ -293,8 +297,8 @@ class BaseFormatter:
         cur = self.dbconn.cursor()
         cur.execute(
             "SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
-            "ForwardID, PostAuthor, ViewCount, MediaID, Formatting "
-            "FROM Message {}".format(where), params
+            "ForwardID, PostAuthor, ViewCount, MediaID, Formatting, "
+            "ServiceAction FROM Message {}".format(where), params
         )
         row = cur.fetchone()
         if row:
