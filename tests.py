@@ -198,7 +198,7 @@ class TestDumpAll(unittest.TestCase):
         )
         loc = dumper.dump_media(message.media)
         dumper.dump_message(message, 123, forward_id=None, media_id=loc)
-        dumper.dump_message_service(media_id=loc, message=types.MessageService(
+        dumper.dump_message_service(context_id=123, media_id=loc, message=types.MessageService(
             id=779,
             to_id=123,
             date=datetime.now(),
