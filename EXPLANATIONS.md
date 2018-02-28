@@ -45,5 +45,5 @@ Various schema decisions
 
 * Message text can be null since media with no caption have no text.
 * Message FromID can be null since Channels provide no FromID.
-* Supergroups are artificially separated from Channels for User friendliness,
-  to Telegram, they are the same thing.
+* Supergroups are artificially separated from Channels so as not to confuse
+  people with technical details (to Telegram, they are the same thing).
