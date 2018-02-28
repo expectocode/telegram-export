@@ -182,6 +182,7 @@ class Dumper:
                       "ViewCount INT,"
                       "MediaID INT,"
                       "Formatting TEXT,"  # e.g. bold, italic, etc.
+                      "Action TEXT,"  # friendly name if it is a MessageService
                       "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
                       "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
                       "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
@@ -243,12 +244,34 @@ class Dumper:
                              message.post_author,
                              message.views,
                              media_id,
-                             utils.encode_msg_entities(message.entities))
+                             utils.encode_msg_entities(message.entities),
+                             None)  # No MessageAction
                            )
 
-    def dump_message_service(self, message, media_id):
-        """Dump a MessageService into the ??? table"""
-        # ddg.gg/%68%61%68%61%20%79%65%73?ia=images
+    def dump_message_service(self, message, context_id, media_id):
+        """Similar to self.dump_message, but for MessageAction's."""
+        name = utils.action_to_name(message.action)
+        if not name:
+            return
+
+        extra = message.action.to_dict()
+        del extra['_']  # We don't need to store the type, already have name
+        sanitize_dict(extra)
+        extra = json.dumps(extra)
+        return self._insert('Message',
+                            (message.id,
+                             context_id,
+                             message.date.timestamp(),
+                             message.from_id,
+                             extra,  # Message field contains the information
+                             message.reply_to_msg_id,
+                             None,  # No forward
+                             None,  # No author
+                             None,  # No views
+                             media_id,  # Might have e.g. a new chat Photo
+                             None,  # No entities
+                             name)
+                           )
 
     def dump_user(self, user_full, photo_id, timestamp=None):
         """Dump a UserFull into the User table

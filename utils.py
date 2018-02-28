@@ -60,3 +60,28 @@ def decode_msg_entities(string):
             else:
                 parsed.append(TEXT_TO_ENTITY[kind](offset, length))
     return parsed
+
+
+def action_to_name(action):
+    """Returns a namespace'd "friendly" name for the given MessageAction."""
+    return {
+        types.MessageActionChannelCreate: 'channel.create',
+        types.MessageActionChannelMigrateFrom: 'channel.migratefrom',
+        types.MessageActionChatAddUser: 'chat.adduser',
+        types.MessageActionChatCreate: 'chat.create',
+        types.MessageActionChatDeletePhoto: 'chat.deletephoto',
+        types.MessageActionChatDeleteUser: 'chat.deleteuser',
+        types.MessageActionChatEditPhoto: 'chat.editphoto',
+        types.MessageActionChatEditTitle: 'chat.edittitle',
+        types.MessageActionChatJoinedByLink: 'chat.joinedbylink',
+        types.MessageActionChatMigrateTo: 'chat.migrateto',
+        types.MessageActionCustomAction: 'custom',
+        types.MessageActionEmpty: 'empty',
+        types.MessageActionGameScore: 'game.score',
+        types.MessageActionHistoryClear: 'history.clear',
+        types.MessageActionPaymentSent: 'payment.sent',
+        types.MessageActionPaymentSentMe: 'payment.sentme',
+        types.MessageActionPhoneCall: 'phone.call',
+        types.MessageActionPinMessage: 'pin.message',
+        types.MessageActionScreenshotTaken: 'screenshottaken'
+    }.get(type(action), None)
