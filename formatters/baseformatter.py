@@ -67,6 +67,10 @@ class BaseFormatter:
     @staticmethod
     @abstractmethod
     def name():
+        """
+        An abstractmethod that subclasses should implement to return their
+        user-friendly name
+        """
         pass
 
     @staticmethod
@@ -235,7 +239,7 @@ class BaseFormatter:
             "SELECT ID, ContextID, Date, FromID, Message, ReplyMessageID, "
             "ForwardID, PostAuthor, ViewCount, MediaID, Formatting, ServiceAction"
             " FROM Message {}{} ORDER BY Date {}".format(where, exclude_service,
-                order.upper()),
+                                                         order.upper()),
             params
         )
         row = cur.fetchone()

@@ -88,7 +88,7 @@ def parse_args():
     parser.add_argument('--format', type=str,
                         help='formats the dumped messages with the specified '
                              'formatter and exits. Valid options are: {}'
-                             .format(', '.join(NAME_TO_FORMATTER)))
+                        .format(', '.join(NAME_TO_FORMATTER)))
     return parser.parse_args()
 
 

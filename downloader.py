@@ -194,8 +194,7 @@ class Downloader:
                     if attr.voice:
                         return 'voice'
                     return 'audio'
-            if 'document':
-                return False
+            return 'document'
         return 'unknown'
 
     @staticmethod
@@ -291,8 +290,8 @@ class Downloader:
                 added, removed = dumper.dump_participants_delta(
                     target_id, ids=[x.id for x in participants]
                 )
-                entity_downloader.extend_pending([p for p in participants if
-                    p.id in added or p.id in removed])
+                entity_downloader.extend_pending(
+                    [p for p in participants if p.id in added or p.id in removed])
                 __log__.info('Saved %d new members, %d left the chat.',
                              len(added), len(removed))
             except ChatAdminRequiredError:
@@ -493,7 +492,7 @@ class Downloader:
     def load_entities_from_str(self, string):
         """Helper function to load entities from the config file"""
         for who in string.split(','):
-            who = who.strip().split(':',1)[0]  # Ignore anything after ':'
+            who = who.strip().split(':', 1)[0]  # Ignore anything after ':'
             if (not who.startswith('+') and who.isdigit()) or who.startswith('-'):
                 yield self.client.get_input_entity(int(who))
             else:

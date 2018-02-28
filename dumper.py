@@ -5,12 +5,12 @@ import logging
 import sqlite3
 import sys
 import time
-import utils
 from base64 import b64encode
 from datetime import datetime
 from enum import Enum
 import os.path
 
+import utils
 from telethon.tl import types
 from telethon.utils import get_peer_id
 
@@ -20,6 +20,7 @@ DB_VERSION = 1  # database version
 
 
 class InputFileType(Enum):
+    """An enum to specify the type of an InputFile"""
     NORMAL = 0
     DOCUMENT = 1
 
@@ -285,7 +286,7 @@ class Dumper:
                              media_id,  # Might have e.g. a new chat Photo
                              None,  # No entities
                              name)
-                            )
+                           )
 
     def dump_admin_log_event(self, event, context_id, media_id1, media_id2):
         """Similar to self.dump_message_service but for channel actions."""

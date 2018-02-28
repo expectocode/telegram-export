@@ -1,3 +1,4 @@
+"""Utility functions for telegram-export which aren't specific to one purpose"""
 from telethon.tl import types
 
 
@@ -22,7 +23,7 @@ def encode_msg_entities(entities):
         return None
     parsed = []
     for entity in entities:
-        if type(entity) in ENTITY_TO_TEXT:
+        if entity.__class__ in ENTITY_TO_TEXT:
             if isinstance(entity, types.MessageEntityTextUrl):
                 extra = ',{}'.format(
                     entity.url.replace(',', '%2c').replace(';', '%3b')

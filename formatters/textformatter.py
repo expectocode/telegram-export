@@ -10,21 +10,22 @@ class TextFormatter(BaseFormatter):
         return 'text'
 
     def generate_message(self, message):
+        """Generate the text for a given Message namedtuple"""
         who = self.get_display_name(
-                 self.get_user(message.from_id)) or UNKNOWN_USER_TEXT
+            self.get_user(message.from_id)) or UNKNOWN_USER_TEXT
 
         if message.service_action:
             return "Service action {}".format(message.service_action)
 
         if message.reply_message is not None:
-            if message.reply_message is ():  # Unlikely, message not dumped
+            if message.reply_message == ():  # Unlikely, message not dumped
                 reply, reply_sender = '???', '???'
             else:
                 reply_sender = self.get_display_name(
-                        message.reply_message.from_user) or UNKNOWN_USER_TEXT
+                    message.reply_message.from_user) or UNKNOWN_USER_TEXT
                 replytext = message.reply_message.text or ''
                 reply = ' (in reply to {}\'s: "{}")'.format(
-                        reply_sender, replytext)
+                    reply_sender, replytext)
         else:
             reply = ''
 

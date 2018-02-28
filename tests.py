@@ -149,6 +149,7 @@ class TestDumpAll(unittest.TestCase):
         self.client.disconnect()
 
     def test_dump_methods(self):
+        """Test dumper.dump_* works"""
         dumper = Dumper(self.dumper_config)
         message = types.Message(
             id=777,
@@ -256,6 +257,7 @@ class TestDumpAll(unittest.TestCase):
         dumper.dump_channel(channel_full, channel, photo_id=None)
 
     def test_dump_msg_entities(self):
+        """Show that entities are correctly parsed and stored"""
         message = types.Message(
             id=1,
             to_id=types.PeerUser(321),
