@@ -40,20 +40,18 @@ telegram-export vs [telegram-history-dump](https://github.com/tvdstaaij/telegram
   impossible, as well as several other `tg-cli` annoyances (such as being
   somewhat harder to install).
 
-- No support for service messages yet, which dump does support.
-
 - Newer and less mature than dump
 
+- No dedicated analysis program yet (dump has telegram-analysis and pisg)
+
 - Implemented features which dump does not support (incomplete list):
+	- Admin logs
 	- Dumping Users/Channels/Chats as their own entities, not just as message
   metadata. This allows things like user bios, channel descriptions and profile
   pictures.
     - Pinned messages (dump kind of supports this, but only by saving a message
   replying to the pinned message with text 'pinned the message')
-
-- Planned features which dump does not support (incomplete list):
-    - participant lists
-	- admin logs
+    - Participant lists
 
 - Closer interaction with the Telegram API theoretically allows big speed
   improvements (Practical comparison of times soon™)
@@ -67,9 +65,7 @@ Limitations
 ===========
 
 - Currently sort of unfinished. It dumps things, but the schema may change
-  and we won't support old schema transitions. At the moment, we also do
-  not yet dump admin logs or participant lists or a few other things which
-  we plan to do.
+  and we won't support old schema transitions.
 
 - Certain information is not dumped for simplicity's sake. For example,
   edited messages won't be re-downloaded and there is currently no support
