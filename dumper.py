@@ -378,7 +378,8 @@ class Dumper:
         ids = set(ids)
         c = self.conn.cursor()
         c.execute('SELECT Added, Removed FROM ChatParticipants '
-                  'ORDER BY DateUpdated ASC')
+                  'WHERE ContextID = ? ORDER BY DateUpdated ASC',
+                  (context_id,))
 
         row = c.fetchone()
         if not row:
