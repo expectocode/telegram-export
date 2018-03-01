@@ -296,6 +296,9 @@ class Downloader:
             dumper,
             photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
         )
+        # Always download the dumping dialog
+        entity_downloader.extend_pending((target,))
+
         if isinstance(target_in, (types.InputPeerChat, types.InputPeerChannel)):
             try:
                 __log__.info('Getting participants...')
@@ -303,8 +306,6 @@ class Downloader:
                 added, removed = dumper.dump_participants_delta(
                     target_id, ids=[x.id for x in participants]
                 )
-                entity_downloader.extend_pending(
-                    [p for p in participants if p.id in added or p.id in removed])
                 __log__.info('Saved %d new members, %d left the chat.',
                              len(added), len(removed))
             except ChatAdminRequiredError:
