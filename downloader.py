@@ -19,6 +19,7 @@ __log__ = logging.getLogger(__name__)
 VALID_TYPES = {
     'photo', 'document', 'video', 'audio', 'sticker', 'voice', 'chatphoto'
 }
+BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}/{remaining}, {rate_noinv_fmt}{postfix}]"
 
 
 class _EntityDownloader:
@@ -160,10 +161,12 @@ class _EntityDownloader:
     def __len__(self):
         return len(self._pending)
 
-    def pop_pending(self):
+    def pop_pending(self, pbar):
         """Pops a pending entity off the queue and returns needed sleep."""
         if self._pending:
-            return self._dump_entity(self._pending.popleft())
+            sleep = self._dump_entity(self._pending.popleft())
+            pbar.update(1)  # Increment bar
+            return sleep
         return 0
 
 
@@ -312,9 +315,10 @@ class Downloader:
             __log__.info('Resuming at %s (%s)', req.offset_date, req.offset_id)
 
         found = dumper.get_message_count(target_id)
-        pbar = tqdm.tqdm(unit=' messages', desc=utils.get_display_name(target))
-        pbar.n = found
-        entbar = tqdm.tqdm(unit=' entities', postfix={'chat':utils.get_display_name(target)})
+        pbar = tqdm.tqdm(unit=' messages', desc=utils.get_display_name(target),
+                initial=found, bar_format=BAR_FORMAT)
+        entbar = tqdm.tqdm(unit=' entities',
+                postfix={'chat':utils.get_display_name(target)}, bar_format=BAR_FORMAT)
         while True:
             start = time.time()
             history = self.client(req)
@@ -332,7 +336,7 @@ class Downloader:
             # GetHistory are the same and are independent of each other, we can
             # ignore the 'recommended' sleep from pop_pending and use the later
             # sleep (1 - time_taken) for both of these, halving time taken here
-            entity_downloader.pop_pending()
+            entity_downloader.pop_pending(entbar)
             entbar.update(1)
 
             for m in history.messages:
@@ -410,14 +414,14 @@ class Downloader:
             'Done. Retrieving full information about %s missing entities.',
             len(entity_downloader)
         )
+        entbar.total = len(entity_downloader)
         while entity_downloader:
             start = time.time()
-            needed_sleep = entity_downloader.pop_pending()
+            needed_sleep = entity_downloader.pop_pending(entbar)
             dumper.commit()
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
-        if entbar.total:
-            entbar.n = entbar.total
+        entbar.n = entbar.total
         entbar.close()
 
     def save_admin_log(self, dumper, target_id):
@@ -443,6 +447,7 @@ class Downloader:
             dumper,
             photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
         )
+        entbar = tqdm.tqdm(entbar = tqdm.tqdm(unit='log event'))
         while True:
             start = time.time()
             result = self.client(req)
@@ -450,7 +455,7 @@ class Downloader:
             entity_downloader.extend_pending(
                 itertools.chain(result.users, result.chats)
             )
-            entity_downloader.pop_pending()
+            entity_downloader.pop_pending(entbar)
             if not result.events:
                 break
 
@@ -480,7 +485,7 @@ class Downloader:
 
         while entity_downloader:
             start = time.time()
-            needed_sleep = entity_downloader.pop_pending()
+            needed_sleep = entity_downloader.pop_pending(entbar)
             dumper.commit()
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
