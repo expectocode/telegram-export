@@ -48,7 +48,7 @@ def load_config(filename):
     config.read(filename)
 
     # Check logging level (let it raise on invalid)
-    level = (config['Dumper'].get('LogLevel') or 'DEBUG').upper()
+    level = (config['Dumper'].get('LogLevel') or 'INFO').upper()
     handler = TqdmLoggingHandler(level)
     handler.setFormatter(logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')

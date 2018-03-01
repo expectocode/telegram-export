@@ -98,8 +98,8 @@ MaxSize = 1MB
 # Sets the log level used across the entire dumper. Supported values
 # are the same available in the "logging" module. Defaults to DEBUG.
 # Available levels: ERROR, WARNING, DEBUG, INFO, NOTSET
-; LogLevel = DEBUG
-LogLevel = DEBUG
+; LogLevel = INFO
+LogLevel = INFO
 
 # Sets the log level used across libaries (excluding the dumper).
 ; LibraryLogLevel = WARNING
