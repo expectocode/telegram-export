@@ -262,7 +262,9 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        logging.getLogger(__name__).info("Closing exporter")
         client.disconnect()
+        dumper.conn.close()
 
 
 if __name__ == '__main__':
