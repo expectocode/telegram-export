@@ -9,16 +9,32 @@ import os
 
 import sys
 from telethon import TelegramClient, utils
+import tqdm
 
 from dumper import Dumper
 from downloader import Downloader
 from formatters import NAME_TO_FORMATTER
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('')  # Root logger
 
 
 NO_USERNAME = '<no username>'
 SCRIPT_DIR = os.path.dirname(__file__)
+
+
+class TqdmLoggingHandler (logging.Handler):
+    def __init__ (self, level=logging.NOTSET):
+        super().__init__(level)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.tqdm.write(msg)
+            self.flush()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
 
 
 def load_config(filename):
@@ -33,13 +49,18 @@ def load_config(filename):
 
     # Check logging level (let it raise on invalid)
     level = (config['Dumper'].get('LogLevel') or 'DEBUG').upper()
-    logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=getattr(logging, level)
+    handler = TqdmLoggingHandler(level)
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     )
+    handler.setLevel(getattr(logging, level))
+    logger.addHandler(handler)
+    logger.setLevel(getattr(logging, level))
+    # Library loggers
     level = (config['Dumper'].get('LibraryLogLevel') or 'WARNING').upper()
-    logging.getLogger('telethon').setLevel(getattr(logging, level))
-
+    telethon_logger = logging.getLogger('telethon')
+    telethon_logger.setLevel(getattr(logging, level))
+    telethon_logger.addHandler(handler)
     # Convert default output dir '.' to script dir
     if config['Dumper']['OutputDirectory'] == '.':
         config['Dumper']['OutputDirectory'] = SCRIPT_DIR

@@ -11,6 +11,7 @@ from telethon import utils
 from telethon.errors import ChatAdminRequiredError
 from telethon.extensions import BinaryReader
 from telethon.tl import types, functions
+import tqdm
 
 __log__ = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ __log__ = logging.getLogger(__name__)
 VALID_TYPES = {
     'photo', 'document', 'video', 'audio', 'sticker', 'voice', 'chatphoto'
 }
+BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}/{remaining}, {rate_noinv_fmt}{postfix}]"
 
 
 class _EntityDownloader:
@@ -70,7 +72,6 @@ class _EntityDownloader:
         needed_sleep = 1
         eid = utils.get_peer_id(entity)
 
-        __log__.debug('Dumping entity %s', utils.get_display_name(entity))
         if isinstance(entity, types.User):
             full = self.client(functions.users.GetFullUserRequest(entity))
             photo_id = self.dumper.dump_media(full.profile_photo)
@@ -160,10 +161,12 @@ class _EntityDownloader:
     def __len__(self):
         return len(self._pending)
 
-    def pop_pending(self):
+    def pop_pending(self, pbar):
         """Pops a pending entity off the queue and returns needed sleep."""
         if self._pending:
-            return self._dump_entity(self._pending.popleft())
+            sleep = self._dump_entity(self._pending.popleft())
+            pbar.update(1)  # Increment bar
+            return sleep
         return 0
 
 
@@ -270,8 +273,8 @@ class Downloader:
 
     def save_messages(self, dumper, target_id):
         """
-        Download and dump messages and media (depending on media config)
-        from the target using the dumper, then dump all entities found.
+        Download and dump messages, entities, and media (depending on media
+        config) from the target using the dumper, then dump remaining entities.
         """
         target_in = self.client.get_input_entity(target_id)
         target = self.client.get_entity(target_in)
@@ -286,7 +289,6 @@ class Downloader:
             min_id=0,
             hash=0
         )
-        __log__.info('Starting dump with %s', utils.get_display_name(target))
         chunks_left = dumper.max_chunks
 
         entity_downloader = _EntityDownloader(
@@ -313,6 +315,10 @@ class Downloader:
             __log__.info('Resuming at %s (%s)', req.offset_date, req.offset_id)
 
         found = dumper.get_message_count(target_id)
+        pbar = tqdm.tqdm(unit=' messages', desc=utils.get_display_name(target),
+                initial=found, bar_format=BAR_FORMAT)
+        entbar = tqdm.tqdm(unit=' entities',
+                postfix={'chat':utils.get_display_name(target)}, bar_format=BAR_FORMAT)
         while True:
             start = time.time()
             history = self.client(req)
@@ -330,7 +336,8 @@ class Downloader:
             # GetHistory are the same and are independent of each other, we can
             # ignore the 'recommended' sleep from pop_pending and use the later
             # sleep (1 - time_taken) for both of these, halving time taken here
-            entity_downloader.pop_pending()
+            entity_downloader.pop_pending(entbar)
+            entbar.update(1)
 
             for m in history.messages:
                 if isinstance(m, types.Message):
@@ -357,18 +364,17 @@ class Downloader:
                     continue
 
             total_messages = getattr(history, 'count', len(history.messages))
+            pbar.total = total_messages
             if history.messages:
                 # We may reinsert some we already have (so found > total)
                 found = min(found + len(history.messages), total_messages)
                 req.offset_id = min(m.id for m in history.messages)
                 req.offset_date = min(m.date for m in history.messages)
 
-            __log__.debug('Downloaded {}/{} ({:.1%})'.format(
-                found, total_messages, found / total_messages
-            ))
+            pbar.update(len(history.messages))
 
             if len(history.messages) < req.limit:
-                __log__.info('Received less messages than limit, done.')
+                __log__.debug('Received less messages than limit, done.')
                 # Receiving less messages than the limit means we have reached
                 # the end, so we need to exit. Next time we'll start from offset
                 # 0 again so we can check for new messages.
@@ -380,7 +386,7 @@ class Downloader:
             # as the minimum message ID (now in offset ID) is less than
             # the highest ID ("closest" bound we need to reach), stop.
             if req.offset_id <= stop_at:
-                __log__.info('Reached already-dumped messages, done.')
+                __log__.debug('Reached already-dumped messages, done.')
                 max_msg_id = dumper.get_message_id(target_id, 'MAX')
                 dumper.save_resume(target_id, stop_at=max_msg_id)
                 break
@@ -394,25 +400,29 @@ class Downloader:
 
             chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
             if chunks_left == 0:
-                __log__.info('Reached maximum amount of chunks, done.')
+                __log__.debug('Reached maximum amount of chunks, done.')
                 break
 
             dumper.commit()
             # 30 request in 30 seconds (sleep a second *between* requests)
             time.sleep(max(1 - (time.time() - start), 0))
         dumper.commit()
+        pbar.n = pbar.total
+        pbar.close()
 
         __log__.info(
             'Done. Retrieving full information about %s missing entities.',
             len(entity_downloader)
         )
+        entbar.total = entity_downloader.total_count
         while entity_downloader:
             start = time.time()
-            needed_sleep = entity_downloader.pop_pending()
+            needed_sleep = entity_downloader.pop_pending(entbar)
             dumper.commit()
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
-        __log__.info('Dump with %s finished', utils.get_display_name(target))
+        entbar.n = entbar.total
+        entbar.close()
 
     def save_admin_log(self, dumper, target_id):
         """
@@ -437,6 +447,7 @@ class Downloader:
             dumper,
             photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
         )
+        entbar = tqdm.tqdm(entbar = tqdm.tqdm(unit='log events'))
         while True:
             start = time.time()
             result = self.client(req)
@@ -444,7 +455,7 @@ class Downloader:
             entity_downloader.extend_pending(
                 itertools.chain(result.users, result.chats)
             )
-            entity_downloader.pop_pending()
+            entity_downloader.pop_pending(entbar)
             if not result.events:
                 break
 
@@ -465,6 +476,7 @@ class Downloader:
                 dumper.dump_admin_log_event(event, target_id,
                                             media_id1=media_id1,
                                             media_id2=media_id2)
+                entbar.update(1)
 
             req.max_id = min(e.id for e in result.events)
             time.sleep(max(1 - (time.time() - start), 0))
@@ -474,11 +486,11 @@ class Downloader:
 
         while entity_downloader:
             start = time.time()
-            needed_sleep = entity_downloader.pop_pending()
+            needed_sleep = entity_downloader.pop_pending(entbar)
             dumper.commit()
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
-        __log__.info('Admin log from %s dumped',
+        __log__.debug('Admin log from %s dumped',
                      utils.get_display_name(target))
 
     def download_past_media(self, dumper, target_id):
