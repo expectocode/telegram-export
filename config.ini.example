@@ -56,10 +56,10 @@ MediaFilenameFmt = "usermedia/{name}/{type}/{filename}{ext}"
 ; DBFileName = export
 DBFileName = export
 
-# Amount of time after which an unchanged user should be dumped anyway
-# See explanation for 'Invalidation time'. In minutes.
-; ForceNoChangeDumpAfter = 7200
-ForceNoChangeDumpAfter = 7200
+# Time after which an unchanged user should be dumped anyway, to avoid a long
+# information gap (see EXPLANATIONS.md). In minutes.
+; InvalidationTime = 7200
+InvalidationTime = 7200
 
 # Either Whitelist or Blacklist should be present, not both. If both are
 # present, only Whitelist will be used.

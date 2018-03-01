@@ -72,8 +72,8 @@ def load_config(filename):
             'usermedia/{name}/{type}/{filename}{ext}'
 
     # Convert minutes to seconds
-    config['Dumper']['ForceNoChangeDumpAfter'] = str(
-        config['Dumper'].getint('ForceNoChangeDumpAfter', 7200) * 60)
+    config['Dumper']['InvalidationTime'] = str(
+        config['Dumper'].getint('InvalidationTime', 7200) * 60)
 
     # Convert size to bytes
     max_size = config['Dumper'].get('MaxSize') or '1MB'

@@ -68,8 +68,7 @@ class Dumper:
 
         self.chunk_size = max(int(config.get('ChunkSize', 100)), 1)
         self.max_chunks = max(int(config.get('MaxChunks', 0)), 0)
-        self.force_no_change_dump_after = \
-            max(int(config.get('ForceNoChangeDumpAfter', 0)), -1)
+        self.invalidation_time = max(config.getint('InvalidationTime', 0), -1)
 
         c.execute("SELECT name FROM sqlite_master "
                   "WHERE type='table' AND name='Version'")
@@ -663,7 +662,7 @@ class Dumper:
                 if i != date_column and val != last[i]:
                     rows_same = False
 
-            if delta < int(self.force_no_change_dump_after) and rows_same:
+            if delta < self.invalidation_time and rows_same:
                 return False
         return self._insert(into, values)
 
