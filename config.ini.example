@@ -4,25 +4,65 @@
 
 [TelegramAPI]
 
-# You must edit these values to use the exporter
-# You can either get your own from my.telegram.org
-# Or use a published one:
-# https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/SourceFiles/config.h#L247
+################ You MUST edit these values to use the exporter #################
+# You can either get your own from my.telegram.org, or use a published one (easier):
+# https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/SourceFiles/config.h#L222
+# https://git.io/vADys (permanent link)
 ApiId = 12345e
 ApiHash = 0123456789abcdef0123456789abcdef
+
+# Your phone number. You must supply this. Should start with +country code eg +44.
+PhoneNumber = xxxxxxxxxx
 
 # This can be anything
 ; SessionName = exporter
 SessionName = exporter
-
-# Your phone number. You must supply this. Should start with +country code eg +44.
-PhoneNumber = xxxxxxxxxx
 
 [Dumper]
 
 # Output folder, where the DB, media, and cache files will be stored.
 # Leave as . to dump things in the folder with the script, or put an absolute path.
 OutputDirectory = .
+
+# Either Whitelist or Blacklist should be present, not both. If both are
+# present, only Whitelist will be used.
+# * Whitelist will backup only the usernames, phones or IDs listed.
+# * Blacklist will backup everything but listed.
+# Phones start with '+' (no quotes), and items separated by comma.
+# It's usually  a good idea to set a whitelist, as otherwise you will have
+# to wait for lots of dialogs you don't care about to be downloaded. You can
+# get a list of dialogs and their associated IDs by running
+# `telegram-export.py --list-dialogs`
+Whitelist = example, username : My friend,
+			-1001132836449: telegram-export group
+
+############################# 'Advanced Options' #############################
+
+# The file types to download, comma separated. Options are:
+# "photo", "document", "video", "audio", "sticker", "voice", "chatphoto".
+# An empty list (default if omitted) means all are allowed.
+# Note that "chatphoto" includes profile pictures as well.
+; MediaWhitelist = chatphoto, photo, sticker
+MediaWhitelist = chatphoto, photo, sticker
+
+# The maximum allowed file size for a document before skipping it.
+# For instance, "800KB" will only download files smaller or equal to 800KB.
+# Allowed units are "B", "KB", "MB" and "GB" (decimal point allowed).
+#
+# No unit defaults to "MB". Setting to "0"  will not download any media.
+# Note that this only applies to documents (everything but normal photos).
+; MaxSize = 1MB
+MaxSize = 1MB
+
+# Sets the log level used across the entire dumper. Supported values
+# are the same available in the "logging" module. Defaults to DEBUG.
+# Available levels: ERROR, WARNING, DEBUG, INFO, NOTSET
+; LogLevel = INFO
+LogLevel = INFO
+
+# Database filename (without '.db')
+; DBFileName = export
+DBFileName = export
 
 # The format string to be used when downloading media. You can use any literal
 # string you wish in the name, relative names (including directories, separated
@@ -32,7 +72,7 @@ OutputDirectory = .
 # {sender_id}   - Sender ID
 # {context_id}  - Context ID
 # {name}        - Sanitized name of the context (chat)
-# {filename}    - Sanitized file of the name
+# {filename}    - Sanitized name of the file
 # {sender_name} - Sanitized sender name
 # {type}        - The media type (e.g. photo, document, video...)
 # {ext}         - The extension of the file (*including* the dot)
@@ -48,30 +88,16 @@ OutputDirectory = .
 # described under the following link anywhere you wish:
 # https://docs.python.org/3.5/library/datetime.html#strftime-and-strptime-behavior
 #
-# You are responsible for making sure that the filenames are unique enough.
-; MediaFilenameFmt = "usermedia/{name}/{type}/{filename}{ext}"
-MediaFilenameFmt = "usermedia/{name}/{type}/{filename}{ext}"
-
-# Database filename (without '.db')
-; DBFileName = export
-DBFileName = export
+# If the filenames are not unique, you may get files overwritten by other files!
+# Some uniqueness tips: Context IDs won't be the same, Message IDs won't be
+# repeated in the same context
+; MediaFilenameFmt = "usermedia/{name}{context_id}/{type}{filename}-{id}{ext}",
+MediaFilenameFmt = "usermedia/{name}{context_id}/{type}{filename}-{id}{ext}",
 
 # Time after which an unchanged user should be dumped anyway, to avoid a long
 # information gap (see EXPLANATIONS.md). In minutes.
 ; InvalidationTime = 7200
 InvalidationTime = 7200
-
-# Either Whitelist or Blacklist should be present, not both. If both are
-# present, only Whitelist will be used.
-# * Whitelist will backup only the usernames, phones or IDs listed.
-# * Blacklist will backup everything but listed.
-# Phones start with '+' (no quotes), and items separated by comma.
-# It's usually  a good idea to set a whitelist, as otherwise you will have
-# to wait for lots of dialogs you don't care about to be downloaded. You can
-# get a list of dialogs and their associated IDs by running
-# `telegram-export.py --list-dialogs`
-Whitelist = example, username : My friend,
-			-1001132836449: telegram-export group
 
 # Chunk size in which to retrieve messages. 100 (default, max) if not present.
 ; ChunkSize = 100
@@ -79,28 +105,7 @@ Whitelist = example, username : My friend,
 # Maximum chunks to retrieve from a chat (if too many). 0 (default) means all.
 ; MaxChunks = 0
 
-# The file types to download, comma separated. Options are:
-# "photo", "document", "video", "audio", "sticker", "voice", "chatphoto".
-# An empty list (default if omitted) means all are allowed.
-# Note that "chatphoto" includes profile pictures as well.
-; MediaWhitelist = chatphoto, photo, sticker
-MediaWhitelist = chatphoto, photo, sticker
-
-# The maximum allowed file size for a document before skipping it.
-# For instance, "800KB" will only download files smaller or equal to 800KB.
-# Allowed units are "B", "KB", "MB" and "GB" (floating point allowed).
-#
-# No unit defaults to "MB". Setting to "0"  will not download any media.
-# Note that this only applies to documents (everything but normal photos).
-; MaxSize = 1MB
-MaxSize = 1MB
-
-# Sets the log level used across the entire dumper. Supported values
-# are the same available in the "logging" module. Defaults to DEBUG.
-# Available levels: ERROR, WARNING, DEBUG, INFO, NOTSET
-; LogLevel = INFO
-LogLevel = INFO
-
 # Sets the log level used across libaries (excluding the dumper).
+# Accepts the same values as LogLevel
 ; LibraryLogLevel = WARNING
 LibraryLogLevel = WARNING

@@ -177,7 +177,7 @@ class Downloader:
     """
     def __init__(self, client, config):
         self.client = client
-        self.max_size = int(config['MaxSize'])
+        self.max_size = config.getint('MaxSize')
         self.types = {x.strip().lower()
                       for x in (config.get('MediaWhitelist') or '').split(',')
                       if x.strip()}

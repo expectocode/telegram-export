@@ -43,12 +43,27 @@ def load_config(filename):
     # If it was not specified, assume it's config.ini in the script's dir.
     if not filename:
         filename = os.path.join(SCRIPT_DIR, 'config.ini')
+
+    defaults = {
+            'SessionName': 'exporter',
+            'OutputDirectory': '.',
+            'MediaWhitelist': 'chatphoto, photo, sticker',
+            'MaxSize': '1MB',
+            'LogLevel': 'INFO',
+            'DBFileName': 'export',
+            'MediaFilenameFmt': 'usermedia/{name}{context_id}/{type}{filename}-{id}{ext}',
+            'InvalidationTime': '7200',
+            'ChunkSize': '100',
+            'MaxChunks': '0',
+            'LibraryLogLevel': 'WARNING'
+                }
+
     # Load from file
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(defaults)
     config.read(filename)
 
     # Check logging level (let it raise on invalid)
-    level = (config['Dumper'].get('LogLevel') or 'INFO').upper()
+    level = config['Dumper'].get('LogLevel').upper()
     handler = TqdmLoggingHandler(level)
     handler.setFormatter(logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -57,7 +72,7 @@ def load_config(filename):
     logger.addHandler(handler)
     logger.setLevel(getattr(logging, level))
     # Library loggers
-    level = (config['Dumper'].get('LibraryLogLevel') or 'WARNING').upper()
+    level = config['Dumper'].get('LibraryLogLevel').upper()
     telethon_logger = logging.getLogger('telethon')
     telethon_logger.setLevel(getattr(logging, level))
     telethon_logger.addHandler(handler)
@@ -66,17 +81,12 @@ def load_config(filename):
         config['Dumper']['OutputDirectory'] = SCRIPT_DIR
     os.makedirs(config['Dumper']['OutputDirectory'], exist_ok=True)
 
-    # Ensure that we have a format for the media filename
-    if 'MediaFilenameFmt' not in config['Dumper']:
-        config['Dumper']['MediaFilenameFmt'] = \
-            'usermedia/{name}/{type}/{filename}{ext}'
-
     # Convert minutes to seconds
     config['Dumper']['InvalidationTime'] = str(
         config['Dumper'].getint('InvalidationTime', 7200) * 60)
 
     # Convert size to bytes
-    max_size = config['Dumper'].get('MaxSize') or '1MB'
+    max_size = config['Dumper'].get('MaxSize')
     m = re.match(r'(\d+(?:\.\d*)?)\s*([kmg]?b)?', max_size, re.IGNORECASE)
     if not m:
         raise ValueError('Invalid file size given for MaxSize')
