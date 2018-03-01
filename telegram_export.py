@@ -89,6 +89,10 @@ def parse_args():
                         help='formats the dumped messages with the specified '
                              'formatter and exits. Valid options are: {}'
                         .format(', '.join(NAME_TO_FORMATTER)))
+
+    parser.add_argument('--download-past-media', type=int,
+                        help='downloads past media (i.e. dumped files but'
+                             'not downloaded) from the given context ID')
     return parser.parse_args()
 
 
@@ -207,6 +211,10 @@ def main():
     downloader = Downloader(client, config['Dumper'])
     cache_file = os.path.join(absolute_session_name + '.tl')
     try:
+        if args.download_past_media:
+            downloader.download_past_media(dumper, args.download_past_media)
+            return
+
         dumper.check_self_user(client.get_me(input_peer=True).user_id)
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
