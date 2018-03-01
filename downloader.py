@@ -374,7 +374,7 @@ class Downloader:
             pbar.update(len(history.messages))
 
             if len(history.messages) < req.limit:
-                __log__.info('Received less messages than limit, done.')
+                __log__.debug('Received less messages than limit, done.')
                 # Receiving less messages than the limit means we have reached
                 # the end, so we need to exit. Next time we'll start from offset
                 # 0 again so we can check for new messages.
@@ -386,7 +386,7 @@ class Downloader:
             # as the minimum message ID (now in offset ID) is less than
             # the highest ID ("closest" bound we need to reach), stop.
             if req.offset_id <= stop_at:
-                __log__.info('Reached already-dumped messages, done.')
+                __log__.debug('Reached already-dumped messages, done.')
                 max_msg_id = dumper.get_message_id(target_id, 'MAX')
                 dumper.save_resume(target_id, stop_at=max_msg_id)
                 break
@@ -400,7 +400,7 @@ class Downloader:
 
             chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
             if chunks_left == 0:
-                __log__.info('Reached maximum amount of chunks, done.')
+                __log__.debug('Reached maximum amount of chunks, done.')
                 break
 
             dumper.commit()
@@ -414,7 +414,7 @@ class Downloader:
             'Done. Retrieving full information about %s missing entities.',
             len(entity_downloader)
         )
-        entbar.total = len(entity_downloader)
+        entbar.total = entity_downloader.total_count
         while entity_downloader:
             start = time.time()
             needed_sleep = entity_downloader.pop_pending(entbar)
@@ -447,7 +447,7 @@ class Downloader:
             dumper,
             photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
         )
-        entbar = tqdm.tqdm(entbar = tqdm.tqdm(unit='log event'))
+        entbar = tqdm.tqdm(entbar = tqdm.tqdm(unit='log events'))
         while True:
             start = time.time()
             result = self.client(req)
@@ -476,6 +476,7 @@ class Downloader:
                 dumper.dump_admin_log_event(event, target_id,
                                             media_id1=media_id1,
                                             media_id2=media_id2)
+                entbar.update(1)
 
             req.max_id = min(e.id for e in result.events)
             time.sleep(max(1 - (time.time() - start), 0))
@@ -489,7 +490,7 @@ class Downloader:
             dumper.commit()
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
-        __log__.info('Admin log from %s dumped',
+        __log__.debug('Admin log from %s dumped',
                      utils.get_display_name(target))
 
     def download_past_media(self, dumper, target_id):
