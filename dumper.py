@@ -354,7 +354,7 @@ class Dumper:
                   photo_id,
                   supergroup_full.pinned_msg_id)
         return self._insert_if_valid_date('Supergroup', values, date_column=1,
-                                           where=('ID', get_peer_id(supergroup)))
+                                          where=('ID', get_peer_id(supergroup)))
 
     def dump_chat(self, chat, photo_id, timestamp=None):
         """Dump a Chat into the Chat table

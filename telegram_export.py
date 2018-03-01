@@ -22,10 +22,8 @@ NO_USERNAME = '<no username>'
 SCRIPT_DIR = os.path.dirname(__file__)
 
 
-class TqdmLoggingHandler (logging.Handler):
-    def __init__ (self, level=logging.NOTSET):
-        super().__init__(level)
-
+class TqdmLoggingHandler(logging.Handler):
+    """Redirect all logging messages through tqdm.write()"""
     def emit(self, record):
         try:
             msg = self.format(record)
@@ -45,18 +43,18 @@ def load_config(filename):
         filename = os.path.join(SCRIPT_DIR, 'config.ini')
 
     defaults = {
-            'SessionName': 'exporter',
-            'OutputDirectory': '.',
-            'MediaWhitelist': 'chatphoto, photo, sticker',
-            'MaxSize': '1MB',
-            'LogLevel': 'INFO',
-            'DBFileName': 'export',
-            'MediaFilenameFmt': 'usermedia/{name}{context_id}/{type}{filename}-{id}{ext}',
-            'InvalidationTime': '7200',
-            'ChunkSize': '100',
-            'MaxChunks': '0',
-            'LibraryLogLevel': 'WARNING'
-                }
+        'SessionName': 'exporter',
+        'OutputDirectory': '.',
+        'MediaWhitelist': 'chatphoto, photo, sticker',
+        'MaxSize': '1MB',
+        'LogLevel': 'INFO',
+        'DBFileName': 'export',
+        'MediaFilenameFmt': 'usermedia/{name}{context_id}/{type}{filename}-{id}{ext}',
+        'InvalidationTime': '7200',
+        'ChunkSize': '100',
+        'MaxChunks': '0',
+        'LibraryLogLevel': 'WARNING'
+    }
 
     # Load from file
     config = configparser.ConfigParser(defaults)
@@ -65,9 +63,8 @@ def load_config(filename):
     # Check logging level (let it raise on invalid)
     level = config['Dumper'].get('LogLevel').upper()
     handler = TqdmLoggingHandler(level)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    )
+    handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     handler.setLevel(getattr(logging, level))
     logger.addHandler(handler)
     logger.setLevel(getattr(logging, level))

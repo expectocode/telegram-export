@@ -276,6 +276,7 @@ class Downloader:
         Download and dump messages, entities, and media (depending on media
         config) from the target using the dumper, then dump remaining entities.
         """
+        # TODO also actually save admin log
         target_in = self.client.get_input_entity(target_id)
         target = self.client.get_entity(target_in)
         target_id = utils.get_peer_id(target)
@@ -317,9 +318,9 @@ class Downloader:
 
         found = dumper.get_message_count(target_id)
         pbar = tqdm.tqdm(unit=' messages', desc=utils.get_display_name(target),
-                initial=found, bar_format=BAR_FORMAT)
-        entbar = tqdm.tqdm(unit=' entities',
-                postfix={'chat':utils.get_display_name(target)}, bar_format=BAR_FORMAT)
+                         initial=found, bar_format=BAR_FORMAT)
+        entbar = tqdm.tqdm(unit=' entities', bar_format=BAR_FORMAT,
+                           postfix={'chat':utils.get_display_name(target)})
         while True:
             start = time.time()
             history = self.client(req)
@@ -448,7 +449,7 @@ class Downloader:
             dumper,
             photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
         )
-        entbar = tqdm.tqdm(entbar = tqdm.tqdm(unit='log events'))
+        entbar = tqdm.tqdm(entbar=tqdm.tqdm(unit='log events'))
         while True:
             start = time.time()
             result = self.client(req)
@@ -492,7 +493,7 @@ class Downloader:
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
         __log__.debug('Admin log from %s dumped',
-                     utils.get_display_name(target))
+                      utils.get_display_name(target))
 
     def download_past_media(self, dumper, target_id):
         """
