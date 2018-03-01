@@ -505,7 +505,11 @@ class Downloader:
                 'SELECT LocalID, VolumeID, Secret, Type, MimeType, Name '
                 'FROM Media WHERE ID = ?', (msg_row[3],)
             ).fetchone()
-            if media_row[3] not in ('photo', 'document'):
+            # Documents have attributed and they're saved under the "document"
+            # namespace so we need to split it before actually comparing.
+            media_type = media_row[3].split('.')
+            media_type, media_subtype = media_type[0], media_type[-1]
+            if media_type not in ('photo', 'document'):
                 # Only photos or documents are actually downloadable
                 msg_row = msg_cursor.fetchone()
                 continue
@@ -522,15 +526,12 @@ class Downloader:
                 sender_name = ''
 
             date = datetime.datetime.utcfromtimestamp(msg_row[1])
-            # TODO Smarter type guessing.
-            # Maybe instead always dumping 'document' for documents this
-            # should know to differentiate (e.g. sticker/video and so on)?
             formatter = defaultdict(
                 str,
                 id=msg_row[0],
                 context_id=target_id,
                 sender_id=msg_row[2] or 0,
-                type=media_row[3] or 'unknown',
+                type=media_subtype or 'unknown',
                 ext=mimetypes.guess_extension(media_row[4]) or '.bin',
                 name=utils.get_display_name(target) or 'unknown',
                 sender_name=sender_name or 'unknown'
@@ -538,7 +539,7 @@ class Downloader:
             if formatter['ext'] == '.jpe':
                 formatter['ext'] = '.jpg'  # Nobody uses .jpe for photos
 
-            name = None if media_row[3] == 'photo' else media_row[5]
+            name = None if media_subtype == 'photo' else media_row[5]
             formatter['filename'] = name or date.strftime(
                 '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
             )
@@ -553,7 +554,7 @@ class Downloader:
             else:
                 __log__.info('Downloading to %s', filename)
                 os.makedirs(os.path.dirname(filename), exist_ok=True)
-                if media_row[3] == 'document':
+                if media_type == 'document':
                     self.client.download_file(types.InputDocumentFileLocation(
                         id=media_row[0],
                         version=media_row[1],
