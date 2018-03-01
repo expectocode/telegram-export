@@ -324,7 +324,8 @@ class Dumper:
                   user_full.user.bot,
                   user_full.common_chats_count,
                   photo_id)
-        self._insert_if_valid_date('User', values, date_column=1)
+        self._insert_if_valid_date('User', values, date_column=1,
+                                   where=('ID', user_full.user.id))
 
     def dump_channel(self, channel_full, channel, photo_id, timestamp=None):
         """Dump a Channel into the Channel table
@@ -338,7 +339,8 @@ class Dumper:
                   channel.username,
                   photo_id,
                   channel_full.pinned_msg_id)
-        self._insert_if_valid_date('Channel', values, date_column=1)
+        self._insert_if_valid_date('Channel', values, date_column=1,
+                                   where=('ID', get_peer_id(channel)))
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id, timestamp=None):
         """Dump a Supergroup into the Supergroup table
@@ -352,7 +354,8 @@ class Dumper:
                   supergroup.username,
                   photo_id,
                   supergroup_full.pinned_msg_id)
-        return self._insert_if_valid_date('Supergroup', values, date_column=1)
+        return self._insert_if_valid_date('Supergroup', values, date_column=1,
+                                           where=('ID', get_peer_id(supergroup)))
 
     def dump_chat(self, chat, photo_id, timestamp=None):
         """Dump a Chat into the Chat table
@@ -368,7 +371,8 @@ class Dumper:
                   chat.title,
                   migrated_to_id,
                   photo_id)
-        return self._insert_if_valid_date('Chat', values, date_column=1)
+        return self._insert_if_valid_date('Chat', values, date_column=1,
+                                          where=('ID', get_peer_id(chat)))
 
     def dump_participants_delta(self, context_id, ids):
         """
@@ -637,22 +641,30 @@ class Dumper:
 
         return self._insert('Resume', (context_id, msg, msg_date, stop_at))
 
-    def _insert_if_valid_date(self, into, values, date_column):
+    def _insert_if_valid_date(self, into, values, date_column, where):
         """
         Helper method to self._insert(into, values) after checking that the
         given values are different than the latest dump or that the delta
         between the current date and the existing column date_column is
-        bigger than the invalidation time.
+        bigger than the invalidation time. `where` is used to get the last
+        dumped item to check for invalidation time. eg. ("ID", 4) -> WHERE ID = ?, 4
         """
-        last = self.conn.execute('SELECT * FROM {} ORDER BY DateUpdated DESC'
-                                 .format(into)).fetchone()
+        last = self.conn.execute('SELECT * FROM {} WHERE {} = ? ORDER BY DateUpdated DESC'
+                                 .format(into, where[0]),
+                                 (where[1],)).fetchone()
         if last:
             delta = values[date_column] - last[date_column]
-            if delta < int(self.force_no_change_dump_after):
-                for i, value in enumerate(values):
-                    if i != date_column and value != last[i]:
-                        return False
 
+            # Note sqlite stores True as 1 and False as 0 but this is probably ok
+            if len(values) != len(last):
+                raise TypeError("values has a different number of columns to table")
+            rows_same = True
+            for i, val in enumerate(values):
+                if i != date_column and val != last[i]:
+                    rows_same = False
+
+            if delta < int(self.force_no_change_dump_after) and rows_same:
+                return False
         return self._insert(into, values)
 
     def _insert(self, into, values):
@@ -675,9 +687,3 @@ class Dumper:
         Commits the changes made to the database to persist on disk.
         """
         self.conn.commit()
-
-    @staticmethod
-    def rows_are_same(row2, row1, ignore_column):
-        """Compare two records, ignoring the DateUpdated"""
-        # Note that sqlite stores True as 1 and False as 0
-        # but python handles this fine anyway (probably)
