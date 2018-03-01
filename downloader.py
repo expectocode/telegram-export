@@ -1,11 +1,12 @@
 #!/bin/env python3
+import datetime
 import itertools
 import logging
+import mimetypes
 import os
 import time
 from collections import deque, defaultdict
 
-import datetime
 from telethon import utils
 from telethon.errors import ChatAdminRequiredError
 from telethon.extensions import BinaryReader
@@ -469,6 +470,93 @@ class Downloader:
 
         __log__.info('Admin log from %s dumped',
                      utils.get_display_name(target))
+
+    def download_past_media(self, dumper, target_id):
+        """
+        Downloads the past media that has already been dumped into the
+        database but has not been downloaded for the given target ID yet.
+
+        Media which formatted filename results in an already-existing file
+        will be *ignored* and not re-downloaded again.
+        """
+        # TODO Should this respect and download only allowed media? Or all?
+        target_in = self.client.get_input_entity(target_id)
+        target = self.client.get_entity(target_in)
+        target_id = utils.get_peer_id(target)
+
+        msg_cursor = dumper.conn.cursor()
+        msg_cursor.execute('SELECT ID, Date, FromID, MediaID FROM Message '
+                           'WHERE ContextID = ? AND MediaID IS NOT NULL',
+                           (target_id,))
+
+        msg_row = msg_cursor.fetchone()
+        while msg_row:
+            media_row = dumper.conn.execute(
+                'SELECT LocalID, VolumeID, Secret, Type, MimeType, Name '
+                'FROM Media WHERE ID = ?', (msg_row[3],)
+            ).fetchone()
+            if media_row[3] not in ('photo', 'document'):
+                # Only photos or documents are actually downloadable
+                msg_row = msg_cursor.fetchone()
+                continue
+
+            user_row = dumper.conn.execute(
+                'SELECT FirstName, LastName FROM User WHERE ID = ?',
+                (msg_row[2],)
+            ).fetchone()
+            if user_row:
+                sender_name = '{} {}'.format(
+                    msg_row[0] or '', msg_row[1] or ''
+                ).strip()
+            else:
+                sender_name = ''
+
+            date = datetime.datetime.utcfromtimestamp(msg_row[1])
+            # TODO Smarter type guessing.
+            # Maybe instead always dumping 'document' for documents this
+            # should know to differentiate (e.g. sticker/video and so on)?
+            formatter = defaultdict(
+                str,
+                id=msg_row[0],
+                context_id=target_id,
+                sender_id=msg_row[2] or 0,
+                type=media_row[3] or 'unknown',
+                ext=mimetypes.guess_extension(media_row[4]) or '.bin',
+                name=utils.get_display_name(target) or 'unknown',
+                sender_name=sender_name or 'unknown'
+            )
+            if formatter['ext'] == '.jpe':
+                formatter['ext'] = '.jpg'  # Nobody uses .jpe for photos
+
+            name = None if media_row[3] == 'photo' else media_row[5]
+            formatter['filename'] = name or date.strftime(
+                '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
+            )
+            filename = date.strftime(self.media_fmt).format_map(formatter)
+            if not filename.endswith(formatter['ext']):
+                if filename.endswith('.'):
+                    filename = filename[:-1]
+                filename += formatter['ext']
+
+            if os.path.isfile(filename):
+                __log__.debug('Skipping existing file %s', filename)
+            else:
+                __log__.info('Downloading to %s', filename)
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+                if media_row[3] == 'document':
+                    self.client.download_file(types.InputDocumentFileLocation(
+                        id=media_row[0],
+                        version=media_row[1],
+                        access_hash=media_row[2]
+                    ), file=filename)
+                else:
+                    self.client.download_file(types.InputFileLocation(
+                        local_id=media_row[0],
+                        volume_id=media_row[1],
+                        secret=media_row[2]
+                    ), file=filename)
+                time.sleep(1)
+            msg_row = msg_cursor.fetchone()
 
     def fetch_dialogs(self, cache_file='dialogs.tl', force=False):
         """Get a list of dialogs, and dump new data from them"""
