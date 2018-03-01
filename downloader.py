@@ -10,6 +10,7 @@ from telethon import utils
 from telethon.errors import ChatAdminRequiredError
 from telethon.extensions import BinaryReader
 from telethon.tl import types, functions
+import tqdm
 
 __log__ = logging.getLogger(__name__)
 
@@ -59,7 +60,6 @@ class _EntityDownloader:
         needed_sleep = 1
         eid = utils.get_peer_id(entity)
 
-        __log__.debug('Dumping entity %s', utils.get_display_name(entity))
         if isinstance(entity, types.User):
             full = self.client(functions.users.GetFullUserRequest(entity))
             photo_id = self.dumper.dump_media(full.profile_photo)
@@ -259,8 +259,8 @@ class Downloader:
 
     def save_messages(self, dumper, target_id):
         """
-        Download and dump messages and media (depending on media config)
-        from the target using the dumper, then dump all entities found.
+        Download and dump messages, entities, and media (depending on media
+        config) from the target using the dumper, then dump remaining entities.
         """
         target_in = self.client.get_input_entity(target_id)
         target = self.client.get_entity(target_in)
@@ -275,7 +275,6 @@ class Downloader:
             min_id=0,
             hash=0
         )
-        __log__.info('Starting dump with %s', utils.get_display_name(target))
         chunks_left = dumper.max_chunks
 
         entity_downloader = _EntityDownloader(
@@ -302,6 +301,9 @@ class Downloader:
             __log__.info('Resuming at %s (%s)', req.offset_date, req.offset_id)
 
         found = dumper.get_message_count(target_id)
+        pbar = tqdm.tqdm(unit=' messages', desc=utils.get_display_name(target))
+        pbar.n = found
+        entbar = tqdm.tqdm(unit=' entities', postfix={'chat':utils.get_display_name(target)})
         while True:
             start = time.time()
             history = self.client(req)
@@ -320,6 +322,7 @@ class Downloader:
             # ignore the 'recommended' sleep from pop_pending and use the later
             # sleep (1 - time_taken) for both of these, halving time taken here
             entity_downloader.pop_pending()
+            entbar.update(1)
 
             for m in history.messages:
                 if isinstance(m, types.Message):
@@ -346,15 +349,14 @@ class Downloader:
                     continue
 
             total_messages = getattr(history, 'count', len(history.messages))
+            pbar.total = total_messages
             if history.messages:
                 # We may reinsert some we already have (so found > total)
                 found = min(found + len(history.messages), total_messages)
                 req.offset_id = min(m.id for m in history.messages)
                 req.offset_date = min(m.date for m in history.messages)
 
-            __log__.debug('Downloaded {}/{} ({:.1%})'.format(
-                found, total_messages, found / total_messages
-            ))
+            pbar.update(len(history.messages))
 
             if len(history.messages) < req.limit:
                 __log__.info('Received less messages than limit, done.')
@@ -390,6 +392,8 @@ class Downloader:
             # 30 request in 30 seconds (sleep a second *between* requests)
             time.sleep(max(1 - (time.time() - start), 0))
         dumper.commit()
+        pbar.n = pbar.total
+        pbar.close()
 
         __log__.info(
             'Done. Retrieving full information about %s missing entities.',
@@ -401,7 +405,9 @@ class Downloader:
             dumper.commit()
             time.sleep(max(needed_sleep - (time.time() - start), 0))
 
-        __log__.info('Dump with %s finished', utils.get_display_name(target))
+        if entbar.total:
+            entbar.n = entbar.total
+        entbar.close()
 
     def save_admin_log(self, dumper, target_id):
         """
