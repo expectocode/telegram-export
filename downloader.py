@@ -35,6 +35,16 @@ class _EntityDownloader:
         self._pending_ids = set()
         self._dumped_ids = set()
 
+    @property
+    def dumped_count(self):
+        """Returns the count of dumped entities."""
+        return len(self._dumped_ids)
+
+    @property
+    def total_count(self):
+        """Returns the total count of seen entities."""
+        return len(self._pending_ids) + len(self._dumped_ids)
+
     def extend_pending(self, entities):
         """Extends the queue of pending entities."""
         for entity in entities:
