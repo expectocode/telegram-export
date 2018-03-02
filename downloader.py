@@ -5,9 +5,10 @@ import logging
 import mimetypes
 import os
 import queue
+import re
 import threading
 import time
-from collections import deque, defaultdict
+from collections import defaultdict
 
 import tqdm
 from telethon import utils
@@ -23,7 +24,8 @@ __log__ = logging.getLogger(__name__)
 VALID_TYPES = {
     'photo', 'document', 'video', 'audio', 'sticker', 'voice', 'chatphoto'
 }
-BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}/{remaining}, {rate_noinv_fmt}{postfix}]"
+BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} " \
+             "[{elapsed}/{remaining}, {rate_noinv_fmt}{postfix}]"
 
 
 QUEUE_TIMEOUT = 5
@@ -609,8 +611,8 @@ class Downloader:
     def load_entities_from_str(self, string):
         """Helper function to load entities from the config file"""
         for who in string.split(','):
-            who = who.strip().split(':', 1)[0]  # Ignore anything after ':'
-            if (not who.startswith('+') and who.isdigit()) or who.startswith('-'):
+            who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
+            if re.match(r'[^+]-?\d+', who):
                 yield self.client.get_input_entity(int(who))
             else:
                 yield self.client.get_input_entity(who)
