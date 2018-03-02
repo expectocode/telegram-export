@@ -150,7 +150,7 @@ class Downloader:
             location = file_size = None
             if isinstance(media, types.MessageMediaPhoto):
                 if isinstance(media.photo, types.Photo):
-                    for size in media.photo.sizes:
+                    for size in reversed(media.photo.sizes):
                         if isinstance(size, types.PhotoSize):
                             if isinstance(size.location, types.FileLocation):
                                 file_size = size.size
@@ -214,7 +214,7 @@ class Downloader:
             elif isinstance(media, types.Photo):
                 date = media.date
                 known_id = media.id
-                for size in media.sizes:
+                for size in reversed(media.sizes):
                     if isinstance(size, types.PhotoSize):
                         if isinstance(size.location, types.FileLocation):
                             file_size = size.size
