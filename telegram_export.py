@@ -236,7 +236,7 @@ def main():
     if args.list_dialogs or args.search_string:
         return list_or_search_dialogs(args, client)
 
-    downloader = Downloader(client, config['Dumper'])
+    downloader = Downloader(client, config['Dumper'], dumper)
     cache_file = os.path.join(absolute_session_name + '.tl')
     try:
         if args.download_past_media:
@@ -250,7 +250,7 @@ def main():
                 dumper.config['Whitelist']
             )
             for who in entities:
-                downloader.save_messages(dumper, who)
+                downloader.start(who)
 
         elif 'Blacklist' in dumper.config:
             # May be blacklist, so save the IDs on who to avoid
@@ -260,11 +260,11 @@ def main():
             avoid = set(utils.get_peer_id(x) for x in entities)
             for entity in downloader.fetch_dialogs(cache_file=cache_file):
                 if utils.get_peer_id(entity) not in avoid:
-                    downloader.save_messages(dumper, entity)
+                    downloader.start(entity)
         else:
             # Neither blacklist nor whitelist - get all
             for entity in downloader.fetch_dialogs(cache_file=cache_file):
-                downloader.save_messages(dumper, entity)
+                downloader.start(entity)
 
     except KeyboardInterrupt:
         pass

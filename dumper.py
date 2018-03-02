@@ -55,12 +55,12 @@ class Dumper:
         """
         self.config = config
         if 'DBFileName' in self.config:
-            if self.config["DBFileName"] == ':memory:':
-                self.conn = sqlite3.connect(':memory:')
-            else:
-                filename = os.path.join(self.config['OutputDirectory'],
-                                        self.config['DBFileName'])
-                self.conn = sqlite3.connect('{}.db'.format(filename))
+            where = self.config["DBFileName"]
+            if where != ':memory:':
+                where = '{}.db'.format(os.path.join(
+                    self.config['OutputDirectory'], self.config['DBFileName']
+                ))
+            self.conn = sqlite3.connect(where, check_same_thread=False)
         else:
             logger.error("A database filename is required!")
             exit()
