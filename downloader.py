@@ -472,7 +472,7 @@ class Downloader:
                 if log_req:
                     result = self.client(log_req)
                     self.enqueue_entities(itertools.chain(
-                        result.uses, result.chats
+                        result.users, result.chats
                     ))
                     if result.events:
                         entities = {
