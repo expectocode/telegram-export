@@ -56,7 +56,7 @@ MaxSize = 1MB
 
 # Sets the log level used across the entire dumper. Supported values
 # are the same available in the "logging" module. Defaults to DEBUG.
-# Available levels: ERROR, WARNING, DEBUG, INFO, NOTSET
+# Available levels (less to more verbose): ERROR, WARNING, INFO, DEBUG, NOTSET
 ; LogLevel = INFO
 LogLevel = INFO
 
