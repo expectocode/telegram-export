@@ -470,7 +470,7 @@ class Downloader:
 
                 # Interlace with the admin log request if any
                 if log_req:
-                    result = self.client(req)
+                    result = self.client(log_req)
                     self.enqueue_entities(itertools.chain(
                         result.uses, result.chats
                     ))
@@ -497,7 +497,7 @@ class Downloader:
             # This loop is specific to the admin log (to finish up)
             while log_req:
                 start = time.time()
-                result = self.client(req)
+                result = self.client(log_req)
                 self.enqueue_entities(itertools.chain(
                     result.users, result.chats
                 ))
