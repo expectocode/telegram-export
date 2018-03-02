@@ -94,7 +94,7 @@ def get_media_type(media):
 
 def get_file_location(media):
     """
-    Helper method to turn arbitrary media into (InputFileLocation, ~size).
+    Helper method to turn arbitrary media into (InputFileLocation, size/None).
     """
     location = file_size = None
     if isinstance(media, types.MessageMediaPhoto):
@@ -116,7 +116,6 @@ def get_file_location(media):
                 version=media.document.access_hash
             )
     elif isinstance(media, (types.UserProfilePhoto, types.ChatPhoto)):
-        file_size = 48 * 1024  # Average
         if isinstance(media.photo_big, types.FileLocation):
             location = media.photo_big
         elif isinstance(media.photo_small, types.FileLocation):

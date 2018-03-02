@@ -27,6 +27,7 @@ BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} " \
 
 
 QUEUE_TIMEOUT = 5
+DOWNLOAD_PART_SIZE = 256 * 1024
 
 
 class Downloader:
@@ -151,16 +152,32 @@ class Downloader:
                 )
             return min(e.id for e in events)
 
-    def _media_progress(self, saved, total):
-        pass
-
     def _media_callback(self, media, bar):
         """
         Simple callback to download media from (location, filename, file_size).
         """
+        def progress(saved, total):
+            if total is None:
+                # No size was found so the bar total wasn't incremented before
+                bar.total += saved
+                bar.update(saved)
+            elif saved == total:
+                # Downloaded the last bit (which is probably <> part size)
+                mod = (saved % DOWNLOAD_PART_SIZE) or DOWNLOAD_PART_SIZE
+                bar.update(mod)
+            else:
+                # All chunks are of the same size and this isn't the last one
+                bar.update(DOWNLOAD_PART_SIZE)
+
         location, file, file_size = media
+        if file_size is not None:
+            bar.total += file_size
+
         os.makedirs(os.path.dirname(file), exist_ok=True)
-        self.client.download_file(location, file=file, file_size=file_size)
+        self.client.download_file(location, file=file,
+                                  file_size=file_size,
+                                  part_size_kb=DOWNLOAD_PART_SIZE // 1024,
+                                  progress_callback=progress)
 
     def _users_callback(self, user, bar):
         """
@@ -287,7 +304,6 @@ class Downloader:
                 filename += formatter['ext']
 
             self._media_queue.put((location, filename, file_size))
-        # TODO Make an actual use of the filesize and a bar
 
     def _worker_thread(self, used_queue, bar, sleep_wait, callback):
         """
@@ -329,6 +345,9 @@ class Downloader:
                          initial=found, bar_format=BAR_FORMAT)
         entbar = tqdm.tqdm(unit=' entities', bar_format=BAR_FORMAT,
                            postfix={'chat': utils.get_display_name(target)})
+        medbar = tqdm.tqdm(unit='b', bar_format=BAR_FORMAT, unit_scale=True,
+                           postfix={'media': 'file size'})
+        medbar.total = 0
 
         threads = [
             threading.Thread(target=self._worker_thread, args=(
@@ -338,7 +357,7 @@ class Downloader:
                 self._chat_queue, entbar, 1.5, self._chats_callback
             )),
             threading.Thread(target=self._worker_thread, args=(
-                self._media_queue, None, 1.5, self._media_callback
+                self._media_queue, medbar, 1.5, self._media_callback
             ))
         ]
         for thread in threads:
