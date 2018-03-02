@@ -129,7 +129,7 @@ class Downloader:
     Download dialogs and their associated data, and dump them.
     Make Telegram API requests and sleep for the appropriate time.
     """
-    def __init__(self, client, config):
+    def __init__(self, client, config, dumper):
         self.client = client
         self.max_size = config.getint('MaxSize')
         self.types = {x.strip().lower()
@@ -141,7 +141,7 @@ class Downloader:
         if self.types:
             self.types.add('unknown')  # Always allow "unknown" media types
 
-        self.dumper = None  # TODO Set an actual dumper
+        self.dumper = dumper
         self._dumper_lock = threading.Lock()
         self._checked_entity_ids = set()
         # We're gonna need a few queues if we want to do things concurrently.
@@ -231,45 +231,43 @@ class Downloader:
                 else:
                     self.dumper.dump_channel(entity.full_chat, chat, photo_id)
 
-    def _download_media_callback(self, media):
+    def _media_callback(self, media):
         # TODO Download media
         pass
 
-    def _download_users_callback(self, user):
+    def _users_callback(self, user):
         self._dump_full_entity(self.client(
             functions.users.GetFullUserRequest(user)
         ))
+        return 1
 
-    def _download_channels_callback(self, channel):
+    def _channels_callback(self, channel):
         self._dump_full_entity(self.client(
             functions.channels.GetFullChannelRequest(channel)
         ))
+        return 1
 
     def enqueue_entities(self, entities):
         for entity in entities:
+            eid = utils.get_peer_id(entity)
+            if eid in self._checked_entity_ids:
+                continue
+            else:
+                self._checked_entity_ids.add(eid)
             if isinstance(entity, types.User):
-                if entity.deleted or entity.min:
-                    continue  # Empty name would cause IntegrityError
+                if not entity.deleted and not entity.min:
+                    # Empty name would cause IntegrityError
+                    self._user_queue.put(entity)
             elif isinstance(entity, types.Chat):
                 # No need to queue these, extra request not needed
                 self._dump_full_entity(entity)
-                continue
             elif isinstance(entity, types.Channel):
-                if entity.left:
-                    continue  # Getting full info triggers ChannelPrivateError
-            else:
-                # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
-                continue
-
-            eid = utils.get_peer_id(entity)
-            if eid not in self._checked_entity_ids:
-                self._checked_entity_ids.add(eid)
-                if isinstance(entity, types.User):
-                    self._user_queue.put(entity)
-                elif isinstance(entity, types.Channel):
+                if not entity.left:
+                    # Getting full info triggers ChannelPrivateError
                     self._channel_queue.put(entity)
+            # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
 
-    def _worker_thread(self, used_queue, sleep_wait, callback):
+    def _worker_thread(self, used_queue, bar, sleep_wait, callback):
         start = None
         while self._running:
             # We only set the start time once, to also include the time
@@ -283,187 +281,188 @@ class Downloader:
             if item is None:
                 break
             else:
-                callback(item)
+                n = callback(item)
+                if bar:
+                    bar.update(n or 0)
             # Sleep 'sleep_wait' time, considering the time it took
             # to invoke this request (delta between now and start).
             time.sleep(max(sleep_wait - (time.time() - start), 0))
             start = None
 
-    def start(self):
-        # TODO Get rid of save_messages and use this
+    def start(self, target_id):
         self._running = True
+        target_in = self.client.get_input_entity(target_id)
+        target = self.client.get_entity(target_in)
+        target_id = utils.get_peer_id(target)
+
+        found = self.dumper.get_message_count(target_id)
+        pbar = tqdm.tqdm(unit=' messages',
+                         desc=utils.get_display_name(target),
+                         initial=found, bar_format=BAR_FORMAT)
+        entbar = tqdm.tqdm(unit=' entities', bar_format=BAR_FORMAT,
+                           postfix={'chat': utils.get_display_name(target)})
+
         threads = [
             threading.Thread(target=self._worker_thread, args=(
-                self._user_queue, 1.5, self._download_users_callback
+                self._user_queue, entbar, 1.5, self._users_callback
             )),
             threading.Thread(target=self._worker_thread, args=(
-                self._channel_queue, 1.5, self._download_channels_callback
+                self._channel_queue, entbar, 1.5, self._channels_callback
             )),
         ]
         for thread in threads:
             thread.start()
         try:
+            # TODO also actually save admin log
+            self.enqueue_entities((target,))
+            entbar.total = len(self._checked_entity_ids)
+            req = functions.messages.GetHistoryRequest(
+                peer=target_in,
+                offset_id=0,
+                offset_date=None,
+                add_offset=0,
+                limit=self.dumper.chunk_size,
+                max_id=0,
+                min_id=0,
+                hash=0
+            )
+            if isinstance(target_in,
+                          (types.InputPeerChat, types.InputPeerChannel)):
+                try:
+                    __log__.info('Getting participants...')
+                    participants = self.client.get_participants(target_in)
+                    added, removed = self.dumper.dump_participants_delta(
+                        target_id, ids=[x.id for x in participants]
+                    )
+                    __log__.info('Saved %d new members, %d left the chat.',
+                                 len(added), len(removed))
+                except ChatAdminRequiredError:
+                    __log__.info('Getting participants aborted (not admin).')
 
-            pass
+            req.offset_id, req.offset_date, stop_at = self.dumper.get_resume(
+                target_id
+            )
+            if req.offset_id:
+                __log__.info('Resuming at %s (%s)',
+                             req.offset_date, req.offset_id)
+
+            chunks_left = self.dumper.max_chunks
+            while True:
+                start = time.time()
+                history = self.client(req)
+
+                # Get media needs access to the entities from this batch
+                entities = {utils.get_peer_id(x): x for x in
+                            itertools.chain(history.users, history.chats)}
+                entities[target_id] = target
+
+                # Queue users and chats for dumping
+                self.enqueue_entities(itertools.chain(
+                    history.users, history.chats
+                ))
+                entbar.total = len(self._checked_entity_ids)
+
+                with self._dumper_lock:
+                    for m in history.messages:
+                        if isinstance(m, types.Message):
+                            if self._check_media(m.media):
+                                # TODO How to put media
+                                # self._download_media(m, target_id, entities)
+                                pass
+
+                            self.dumper.dump_message(
+                                message=m,
+                                context_id=target_id,
+                                forward_id=self.dumper.dump_forward(m.fwd_from),
+                                media_id=self.dumper.dump_media(m.media)
+                            )
+                        elif isinstance(m, types.MessageService):
+                            if isinstance(m.action,
+                                          types.MessageActionChatEditPhoto):
+                                media_id = self.dumper.dump_media(m.action.photo)
+                                # TODO Put m.action.photo in media queue
+                                # download_profile_photo(
+                                #    m.action.photo, target, known_id=m.id
+                                # )
+                            else:
+                                media_id = None
+                            self.dumper.dump_message_service(
+                                message=m,
+                                context_id=target_id,
+                                media_id=media_id
+                            )
+
+                total_messages = getattr(
+                    history, 'count', len(history.messages)
+                )
+                pbar.total = total_messages
+                if history.messages:
+                    # We may reinsert some we already have (so found > total)
+                    found = min(found + len(history.messages), total_messages)
+                    req.offset_id = min(m.id for m in history.messages)
+                    req.offset_date = min(m.date for m in history.messages)
+
+                pbar.update(len(history.messages))
+
+                if len(history.messages) < req.limit:
+                    __log__.debug('Received less messages than limit, done.')
+                    # Receiving less messages than the limit means we have reached
+                    # the end, so we need to exit. Next time we'll start from offset
+                    # 0 again so we can check for new messages.
+                    with self._dumper_lock:
+                        max_msg_id = self.dumper.get_message_id(target_id, 'MAX')
+                        self.dumper.save_resume(target_id, stop_at=max_msg_id)
+                    break
+
+                # We dump forward (message ID going towards 0), so as soon
+                # as the minimum message ID (now in offset ID) is less than
+                # the highest ID ("closest" bound we need to reach), stop.
+                if req.offset_id <= stop_at:
+                    __log__.debug('Reached already-dumped messages, done.')
+                    with self._dumper_lock:
+                        max_msg_id = self.dumper.get_message_id(target_id, 'MAX')
+                        self.dumper.save_resume(target_id, stop_at=max_msg_id)
+                    break
+
+                # Keep track of the last target ID (smallest one),
+                # so we can resume from here in case of interruption.
+                with self._dumper_lock:
+                    self.dumper.save_resume(
+                        target_id, msg=req.offset_id, msg_date=req.offset_date,
+                        stop_at=stop_at  # We DO want to preserve stop_at though.
+                    )
+                    self.dumper.commit()
+
+                chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
+                if chunks_left == 0:
+                    __log__.debug('Reached maximum amount of chunks, done.')
+                    break
+
+                # 30 request in 30 seconds (sleep a second *between* requests)
+                time.sleep(max(1 - (time.time() - start), 0))
+
+            with self._dumper_lock:
+                self.dumper.commit()
+
+            pbar.n = pbar.total
+            pbar.close()
+
+            __log__.info(
+                'Done. Retrieving full information about %s missing entities.',
+                self._user_queue.qsize() + self._channel_queue.qsize()
+            )
+            while not self._user_queue.empty() and not self._channel_queue.empty():
+                time.sleep(1)
+
+            entbar.n = entbar.total
+            entbar.close()
         finally:
             self._running = False
+            self._user_queue.put(None)
+            self._channel_queue.put(None)
+            self._media_queue.put(None)
             for thread in threads:
                 thread.join()
-
-    def save_messages(self, dumper, target_id):
-        """
-        Download and dump messages, entities, and media (depending on media
-        config) from the target using the dumper, then dump remaining entities.
-        """
-        # TODO also actually save admin log
-        target_in = self.client.get_input_entity(target_id)
-        target = self.client.get_entity(target_in)
-        target_id = utils.get_peer_id(target)
-        req = functions.messages.GetHistoryRequest(
-            peer=target_in,
-            offset_id=0,
-            offset_date=None,
-            add_offset=0,
-            limit=dumper.chunk_size,
-            max_id=0,
-            min_id=0,
-            hash=0
-        )
-        chunks_left = dumper.max_chunks
-
-        entity_downloader = _EntityDownloader(
-            self.client,
-            dumper,
-            photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
-        )
-        # Always download the dumping dialog
-        entity_downloader.extend_pending((target,))
-
-        if isinstance(target_in, (types.InputPeerChat, types.InputPeerChannel)):
-            try:
-                __log__.info('Getting participants...')
-                participants = self.client.get_participants(target_in)
-                added, removed = dumper.dump_participants_delta(
-                    target_id, ids=[x.id for x in participants]
-                )
-                __log__.info('Saved %d new members, %d left the chat.',
-                             len(added), len(removed))
-            except ChatAdminRequiredError:
-                __log__.info('Getting participants aborted (not admin).')
-
-        req.offset_id, req.offset_date, stop_at = dumper.get_resume(target_id)
-        if req.offset_id:
-            __log__.info('Resuming at %s (%s)', req.offset_date, req.offset_id)
-
-        found = dumper.get_message_count(target_id)
-        pbar = tqdm.tqdm(unit=' messages', desc=utils.get_display_name(target),
-                         initial=found, bar_format=BAR_FORMAT)
-        entbar = tqdm.tqdm(unit=' entities', bar_format=BAR_FORMAT,
-                           postfix={'chat':utils.get_display_name(target)})
-        while True:
-            start = time.time()
-            history = self.client(req)
-
-            # Get media needs access to the entities from this batch
-            entities = {utils.get_peer_id(x): x for x in
-                        itertools.chain(history.users, history.chats)}
-            entities[target_id] = target
-
-            # Queue users and chats for dumping
-            entity_downloader.extend_pending(
-                itertools.chain(history.users, history.chats)
-            )
-            # Since the flood waits we would get from spamming GetFullX and
-            # GetHistory are the same and are independent of each other, we can
-            # ignore the 'recommended' sleep from pop_pending and use the later
-            # sleep (1 - time_taken) for both of these, halving time taken here
-            entity_downloader.pop_pending(entbar)
-            entbar.update(1)
-
-            for m in history.messages:
-                if isinstance(m, types.Message):
-                    if self._check_media(m.media):
-                        self._download_media(m, target_id, entities)
-
-                    fwd_id = dumper.dump_forward(m.fwd_from)
-                    media_id = dumper.dump_media(m.media)
-                    dumper.dump_message(m, target_id,
-                                        forward_id=fwd_id, media_id=media_id)
-
-                elif isinstance(m, types.MessageService):
-                    if isinstance(m.action, types.MessageActionChatEditPhoto):
-                        media_id = dumper.dump_media(m.action.photo)
-                        entity_downloader.download_profile_photo(
-                            m.action.photo, target, known_id=m.id
-                        )
-                    else:
-                        media_id = None
-                    dumper.dump_message_service(m, target_id,
-                                                media_id=media_id)
-                else:
-                    __log__.warning('Skipping message %s', m)
-                    continue
-
-            total_messages = getattr(history, 'count', len(history.messages))
-            pbar.total = total_messages
-            if history.messages:
-                # We may reinsert some we already have (so found > total)
-                found = min(found + len(history.messages), total_messages)
-                req.offset_id = min(m.id for m in history.messages)
-                req.offset_date = min(m.date for m in history.messages)
-
-            pbar.update(len(history.messages))
-
-            if len(history.messages) < req.limit:
-                __log__.debug('Received less messages than limit, done.')
-                # Receiving less messages than the limit means we have reached
-                # the end, so we need to exit. Next time we'll start from offset
-                # 0 again so we can check for new messages.
-                max_msg_id = dumper.get_message_id(target_id, 'MAX')
-                dumper.save_resume(target_id, stop_at=max_msg_id)
-                break
-
-            # We dump forward (message ID going towards 0), so as soon
-            # as the minimum message ID (now in offset ID) is less than
-            # the highest ID ("closest" bound we need to reach), stop.
-            if req.offset_id <= stop_at:
-                __log__.debug('Reached already-dumped messages, done.')
-                max_msg_id = dumper.get_message_id(target_id, 'MAX')
-                dumper.save_resume(target_id, stop_at=max_msg_id)
-                break
-
-            # Keep track of the last target ID (smallest one),
-            # so we can resume from here in case of interruption.
-            dumper.save_resume(
-                target_id, msg=req.offset_id, msg_date=req.offset_date,
-                stop_at=stop_at  # We DO want to preserve stop_at though.
-            )
-
-            chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
-            if chunks_left == 0:
-                __log__.debug('Reached maximum amount of chunks, done.')
-                break
-
-            dumper.commit()
-            # 30 request in 30 seconds (sleep a second *between* requests)
-            time.sleep(max(1 - (time.time() - start), 0))
-        dumper.commit()
-        pbar.n = pbar.total
-        pbar.close()
-
-        __log__.info(
-            'Done. Retrieving full information about %s missing entities.',
-            len(entity_downloader)
-        )
-        entbar.total = entity_downloader.total_count
-        while entity_downloader:
-            start = time.time()
-            needed_sleep = entity_downloader.pop_pending(entbar)
-            dumper.commit()
-            time.sleep(max(needed_sleep - (time.time() - start), 0))
-
-        entbar.n = entbar.total
-        entbar.close()
 
     def save_admin_log(self, dumper, target_id):
         """
