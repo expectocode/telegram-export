@@ -154,7 +154,7 @@ class Downloader:
     def _media_progress(self, saved, total):
         pass
 
-    def _media_callback(self, media):
+    def _media_callback(self, media, bar):
         """
         Simple callback to download media from (location, filename, file_size).
         """
@@ -162,19 +162,20 @@ class Downloader:
         os.makedirs(os.path.dirname(file), exist_ok=True)
         self.client.download_file(location, file=file, file_size=file_size)
 
-    def _users_callback(self, user):
+    def _users_callback(self, user, bar):
         """
         Simple callback to retrieve a full user and dump it into the dumper.
         """
         self._dump_full_entity(self.client(
             functions.users.GetFullUserRequest(user)
         ))
-        return 1
+        bar.update(1)
 
-    def _chats_callback(self, chat):
+    def _chats_callback(self, chat, bar):
         """
         Simple callback to retrieve a full channel and dump it into the dumper.
         """
+        n = 1
         if isinstance(chat, types.Chat):
             self._dump_full_entity(chat)
         elif isinstance(chat, types.Channel):
@@ -182,8 +183,8 @@ class Downloader:
                 functions.channels.GetFullChannelRequest(chat)
             ))
         else:
-            return 0
-        return 1
+            n = 0
+        bar.update(n)
 
     def enqueue_entities(self, entities):
         """
@@ -307,9 +308,7 @@ class Downloader:
             if item is None:
                 break
             else:
-                n = callback(item)
-                if bar:
-                    bar.update(n or 0)
+                callback(item, bar)
             # Sleep 'sleep_wait' time, considering the time it took
             # to invoke this request (delta between now and start).
             time.sleep(max(sleep_wait - (time.time() - start), 0))
