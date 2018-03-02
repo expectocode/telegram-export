@@ -98,7 +98,7 @@ class Downloader:
 
     def _dump_messages(self, messages, target_id, entities):
         """
-        Helper method to download the messages from a GetMessageHistoryRequest
+        Helper method to iterate the messages from a GetMessageHistoryRequest
         and dump them into the Dumper, mostly to avoid excessive nesting.
 
         Also enqueues any media to be downloaded later by a different thread.
@@ -125,6 +125,29 @@ class Downloader:
                         context_id=target_id,
                         media_id=media_id
                     )
+
+    def _dump_admin_log(self, events, target):
+        """
+        Helper method to iterate the events from a GetAdminLogRequest
+        and dump them into the Dumper, mostly to avoid excessive nesting.
+
+        Also enqueues any media to be downloaded later by a different thread.
+        """
+        with self._dumper_lock:
+            for event in events:
+                if isinstance(event.action,
+                              types.ChannelAdminLogEventActionChangePhoto):
+                    media_id1 = self.dumper.dump_media(event.action.new_photo)
+                    media_id2 = self.dumper.dump_media(event.action.prev_photo)
+                    self.enqueue_media(event.action.new_photo, target)
+                    self.enqueue_media(event.action.prev_photo, target)
+                else:
+                    media_id1 = None
+                    media_id2 = None
+                self.dumper.dump_admin_log_event(
+                    event, utils.get_peer_id(target), media_id1, media_id2
+                )
+            return min(e.id for e in events)
 
     def _media_progress(self, saved, total):
         pass
@@ -320,7 +343,6 @@ class Downloader:
         for thread in threads:
             thread.start()
         try:
-            # TODO also actually save admin log
             self.enqueue_entities((target,))
             entbar.total = len(self._checked_entity_ids)
             req = functions.messages.GetHistoryRequest(
@@ -353,11 +375,28 @@ class Downloader:
                 __log__.info('Resuming at %s (%s)',
                              req.offset_date, req.offset_id)
 
+            # Check if we have access to the admin log
+            # TODO Resume admin log?
+            # Rather silly considering logs only last up to two days and
+            # there isn't much information in them (due to their short life).
+            if isinstance(target_in, types.InputPeerChannel):
+                log_req = functions.channels.GetAdminLogRequest(
+                    target_in, q='', min_id=0, max_id=0, limit=1
+                )
+                try:
+                    self.client(log_req)
+                    log_req.limit = 100
+                except ChatAdminRequiredError:
+                    log_req = None
+            else:
+                log_req = None
+
             chunks_left = self.dumper.max_chunks
+            # This loop is for get history, although the admin log
+            # is interlaced as well to dump both at the same time.
             while True:
                 start = time.time()
                 history = self.client(req)
-
                 # Queue found entities so they can be dumped later
                 self.enqueue_entities(itertools.chain(
                     history.users, history.chats
@@ -408,6 +447,19 @@ class Downloader:
                     __log__.debug('Reached maximum amount of chunks, done.')
                     break
 
+                # Interlace with the admin log request if any
+                if log_req:
+                    result = self.client(req)
+                    self.enqueue_entities(itertools.chain(
+                        result.uses, result.chats
+                    ))
+                    if result.events:
+                        log_req.max_id = self._dump_admin_log(
+                            result.events, target
+                        )
+                    else:
+                        log_req = None
+
                 # 30 request in 30 seconds (sleep a second *between* requests)
                 time.sleep(max(1 - (time.time() - start), 0))
 
@@ -416,6 +468,18 @@ class Downloader:
             pbar.close()
             with self._dumper_lock:
                 self.dumper.commit()
+
+            # This loop is specific to the admin log (to finish up)
+            while True:
+                start = time.time()
+                result = self.client(req)
+                self.enqueue_entities(itertools.chain(
+                    result.uses, result.chats
+                ))
+                if not result.events:
+                    break
+                log_req.max_id = self._dump_admin_log(result.events, target)
+                time.sleep(max(1 - (time.time() - start), 0))
 
             __log__.info(
                 'Done. Retrieving full information about %s missing entities.',
@@ -434,71 +498,6 @@ class Downloader:
             self._media_queue.put(None)
             for thread in threads:
                 thread.join()
-
-    def save_admin_log(self, dumper, target_id):
-        """
-        Download and dumps the entire available admin log for the given
-        channel. You must have permission to view the admin log for it.
-        """
-        target_in = self.client.get_input_entity(target_id)
-        target = self.client.get_entity(target_in)
-        target_id = utils.get_peer_id(target)
-        req = functions.channels.GetAdminLogRequest(
-            target_in, q='', min_id=0, max_id=0, limit=100
-        )
-        __log__.info('Starting admin log dump for %s',
-                     utils.get_display_name(target))
-
-        # TODO Resume admin log?
-        # Rather silly considering logs only last up to two days and
-        # there isn't much information in them (due to their short life).
-        chunks_left = dumper.max_chunks
-        # TODO Download entities again
-        entbar = tqdm.tqdm(entbar=tqdm.tqdm(unit='log events'))
-        while True:
-            start = time.time()
-            result = self.client(req)
-            __log__.debug('Downloaded another chunk of the admin log.')
-            #entity_downloader.extend_pending(
-            #    itertools.chain(result.users, result.chats)
-            #)
-            #entity_downloader.pop_pending(entbar)
-            if not result.events:
-                break
-
-            for event in result.events:
-                if isinstance(event.action,
-                              types.ChannelAdminLogEventActionChangePhoto):
-                    media_id1 = dumper.dump_media(event.action.new_photo)
-                    media_id2 = dumper.dump_media(event.action.prev_photo)
-                    #entity_downloader.download_profile_photo(
-                    #    event.action.new_photo, target, event.id
-                    #)
-                    #entity_downloader.download_profile_photo(
-                    #    event.action.prev_photo, target, event.id
-                    #)
-                else:
-                    media_id1 = None
-                    media_id2 = None
-                dumper.dump_admin_log_event(event, target_id,
-                                            media_id1=media_id1,
-                                            media_id2=media_id2)
-                entbar.update(1)
-
-            req.max_id = min(e.id for e in result.events)
-            time.sleep(max(1 - (time.time() - start), 0))
-            chunks_left -= 1
-            if chunks_left <= 0:
-                break
-
-        #while entity_downloader:
-        #    start = time.time()
-        #    needed_sleep = entity_downloader.pop_pending(entbar)
-        #    dumper.commit()
-        #    time.sleep(max(needed_sleep - (time.time() - start), 0))
-
-        __log__.debug('Admin log from %s dumped',
-                      utils.get_display_name(target))
 
     def download_past_media(self, dumper, target_id):
         """
