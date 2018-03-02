@@ -93,6 +93,9 @@ def get_media_type(media):
 
 
 def get_file_location(media):
+    """
+    Helper method to turn arbitrary media into (InputFileLocation, ~size).
+    """
     location = file_size = None
     if isinstance(media, types.MessageMediaPhoto):
         media = media.photo

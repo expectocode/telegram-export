@@ -68,15 +68,11 @@ class Downloader:
             return True
         return export_utils.get_media_type(media) in self.types
 
-    def _download_media(self, msg, target_id, entities):
-        """
-        Save media to disk using the self.media_fmt under OutputDirectory.
-
-        The entities parameter must be a dictionary consisting of {id: entity}
-        and it *has* to contain the IDs for sender_id and context_id.
-        """
-
     def _dump_full_entity(self, entity):
+        """
+        Dumps the full entity into the Dumper, also enqueuing their profile
+        photo if any so it can be downloaded later by a different thread.
+        """
         with self._dumper_lock:
             if isinstance(entity, types.UserFull):
                 self.enqueue_media(entity.profile_photo, entity.user)
@@ -101,6 +97,12 @@ class Downloader:
                     self.dumper.dump_channel(entity.full_chat, chat, photo_id)
 
     def _dump_messages(self, messages, target_id, entities):
+        """
+        Helper method to download the messages from a GetMessageHistoryRequest
+        and dump them into the Dumper, mostly to avoid excessive nesting.
+
+        Also enqueues any media to be downloaded later by a different thread.
+        """
         with self._dumper_lock:
             for m in messages:
                 if isinstance(m, types.Message):
@@ -128,23 +130,36 @@ class Downloader:
         pass
 
     def _media_callback(self, media):
+        """
+        Simple callback to download media from (location, filename, file_size).
+        """
         location, file, file_size = media
         os.makedirs(os.path.dirname(file), exist_ok=True)
         self.client.download_file(location, file=file, file_size=file_size)
 
     def _users_callback(self, user):
+        """
+        Simple callback to retrieve a full user and dump it into the dumper.
+        """
         self._dump_full_entity(self.client(
             functions.users.GetFullUserRequest(user)
         ))
         return 1
 
     def _channels_callback(self, channel):
+        """
+        Simple callback to retrieve a full channel and dump it into the dumper.
+        """
         self._dump_full_entity(self.client(
             functions.channels.GetFullChannelRequest(channel)
         ))
         return 1
 
     def enqueue_entities(self, entities):
+        """
+        Enqueues the given iterable of entities to be dumped later by a
+        different thread. These in turn might enqueue profile photos.
+        """
         for entity in entities:
             eid = utils.get_peer_id(entity)
             if eid in self._checked_entity_ids:
@@ -157,6 +172,7 @@ class Downloader:
                     self._user_queue.put(entity)
             elif isinstance(entity, types.Chat):
                 # No need to queue these, extra request not needed
+                # TODO This won't be considered for the progress bar
                 self._dump_full_entity(entity)
             elif isinstance(entity, types.Channel):
                 if not entity.left:
@@ -165,6 +181,12 @@ class Downloader:
             # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
 
     def enqueue_media(self, media, from_entity, known_id=None):
+        """
+        Enqueues the given message or media from the given context entity
+        to be downloaded later. If the ID of the message is known it should
+        be set in known_id. The media won't be enqueued unless its download
+        is desired.
+        """
         if isinstance(media, types.Message):
             msg = media
             if not self._check_media(msg.media):
@@ -206,6 +228,7 @@ class Downloader:
 
         elif isinstance(media, (types.Photo,
                                 types.UserProfilePhoto, types.ChatPhoto)):
+            # TODO Check that chatphoto is allowed
             if isinstance(media, types.Photo):
                 date = media.date
                 known_id = known_id or media.id
@@ -235,6 +258,11 @@ class Downloader:
         # TODO Make an actual use of the filesize and a bar
 
     def _worker_thread(self, used_queue, bar, sleep_wait, callback):
+        """
+        Worker thread to constantly pop items off the given queue and update
+        the given progress bar as required. Sleeps up to sleep_wait between
+        each request (a call to callback(queue item)).
+        """
         start = None
         while self._running:
             # We only set the start time once, to also include the time
@@ -257,6 +285,9 @@ class Downloader:
             start = None
 
     def start(self, target_id):
+        """
+        Starts the dump with the given target ID.
+        """
         self._running = True
         target_in = self.client.get_input_entity(target_id)
         target = self.target = self.client.get_entity(target_in)
