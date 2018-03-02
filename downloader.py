@@ -55,7 +55,7 @@ class Downloader:
         # None values should be inserted to notify that the dump has finished.
         self._media_queue = queue.Queue()
         self._user_queue = queue.Queue()
-        self._channel_queue = queue.Queue()
+        self._chat_queue = queue.Queue()
         self._running = False
 
     def _check_media(self, media):
@@ -146,13 +146,18 @@ class Downloader:
         ))
         return 1
 
-    def _channels_callback(self, channel):
+    def _chats_callback(self, chat):
         """
         Simple callback to retrieve a full channel and dump it into the dumper.
         """
-        self._dump_full_entity(self.client(
-            functions.channels.GetFullChannelRequest(channel)
-        ))
+        if isinstance(chat, types.Chat):
+            self._dump_full_entity(chat)
+        elif isinstance(chat, types.Channel):
+            self._dump_full_entity(self.client(
+                functions.channels.GetFullChannelRequest(chat)
+            ))
+        else:
+            return 0
         return 1
 
     def enqueue_entities(self, entities):
@@ -171,13 +176,12 @@ class Downloader:
                     # Empty name would cause IntegrityError
                     self._user_queue.put(entity)
             elif isinstance(entity, types.Chat):
-                # No need to queue these, extra request not needed
-                # TODO This won't be considered for the progress bar
-                self._dump_full_entity(entity)
+                # Enqueue these under chats even though it doesn't need full
+                self._chat_queue.put(entity)
             elif isinstance(entity, types.Channel):
                 if not entity.left:
                     # Getting full info triggers ChannelPrivateError
-                    self._channel_queue.put(entity)
+                    self._chat_queue.put(entity)
             # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
 
     def enqueue_media(self, media, from_entity, known_id=None):
@@ -305,7 +309,7 @@ class Downloader:
                 self._user_queue, entbar, 1.5, self._users_callback
             )),
             threading.Thread(target=self._worker_thread, args=(
-                self._channel_queue, entbar, 1.5, self._channels_callback
+                self._chat_queue, entbar, 1.5, self._chats_callback
             )),
             threading.Thread(target=self._worker_thread, args=(
                 self._media_queue, None, 1.5, self._media_callback
@@ -413,9 +417,9 @@ class Downloader:
 
             __log__.info(
                 'Done. Retrieving full information about %s missing entities.',
-                self._user_queue.qsize() + self._channel_queue.qsize()
+                self._user_queue.qsize() + self._chat_queue.qsize()
             )
-            queues = (self._user_queue, self._channel_queue, self._media_queue)
+            queues = (self._user_queue, self._chat_queue, self._media_queue)
             while not all(x.empty() for x in queues):
                 time.sleep(1)
 
@@ -424,7 +428,7 @@ class Downloader:
         finally:
             self._running = False
             self._user_queue.put(None)
-            self._channel_queue.put(None)
+            self._chat_queue.put(None)
             self._media_queue.put(None)
             for thread in threads:
                 thread.join()
