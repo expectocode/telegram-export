@@ -184,10 +184,10 @@ class Downloader:
                                 types.UserProfilePhoto, types.ChatPhoto)):
             if isinstance(media, types.Photo):
                 date = media.date
-                known_id = media.id
+                known_id = known_id or media.id
             else:
                 date = datetime.datetime.now()
-                known_id = utils.get_peer_id(self.target)
+                known_id = known_id or utils.get_peer_id(self.target)
 
             location, file_size = export_utils.get_file_location(media)
             formatter = defaultdict(
