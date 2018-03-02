@@ -495,21 +495,22 @@ class Downloader:
                 self.dumper.commit()
 
             # This loop is specific to the admin log (to finish up)
-            while True:
+            while log_req:
                 start = time.time()
                 result = self.client(req)
                 self.enqueue_entities(itertools.chain(
                     result.users, result.chats
                 ))
-                if not result.events:
-                    break
-                log_req.max_id = self._dump_admin_log(
-                    result.events, target, entities={
-                        utils.get_peer_id(x): x for x in itertools.chain(
-                            result.users, result.chats, (target,))
-                    }
-                )
-                time.sleep(max(1 - (time.time() - start), 0))
+                if result.events:
+                    log_req.max_id = self._dump_admin_log(
+                        result.events, target, entities={
+                            utils.get_peer_id(x): x for x in itertools.chain(
+                                result.users, result.chats, (target,))
+                        }
+                    )
+                    time.sleep(max(1 - (time.time() - start), 0))
+                else:
+                    log_req = None
 
             __log__.info(
                 'Done. Retrieving full information about %s missing entities.',
