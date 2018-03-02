@@ -29,75 +29,6 @@ BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}/{remaining}, {rate_no
 QUEUE_TIMEOUT = 5
 
 
-class _EntityDownloader:
-    """
-    Helper class to concisely keep track on which entities need to be
-    dumped, which already have been dumped, and a function to dump them.
-
-    If no photo_fmt is provided, entity photos will not be downloaded.
-    """
-    def __init__(self, client, dumper, photo_fmt=None):
-        self.client = client
-        self.dumper = dumper
-        self.photo_fmt = photo_fmt
-
-    @property
-    def dumped_count(self):
-        """Returns the count of dumped entities."""
-        return 0
-
-    @property
-    def total_count(self):
-        """Returns the total count of seen entities."""
-        return 0
-
-    def extend_pending(self, entities):
-        """Extends the queue of pending entities."""
-        pass
-
-    def download_profile_photo(self, photo, target, known_id=None):
-        """
-        Similar to Downloader.download_media() but for profile photos.
-
-        Has no effect if there is no photo format (thus it is "disabled").
-        """
-        if not self.photo_fmt:
-            return
-
-        date = datetime.datetime.now()
-        if isinstance(photo, (types.UserProfilePhoto, types.ChatPhoto)):
-            if isinstance(photo.photo_big, types.FileLocation):
-                location = photo.photo_big
-            elif isinstance(photo.photo_small, types.FileLocation):
-                location = photo.photo_small
-            else:
-                return
-        elif isinstance(photo, types.Photo):
-            for size in photo.sizes:
-                if isinstance(size, types.PhotoSize):
-                    if isinstance(size.location, types.FileLocation):
-                        location = size.location
-                        break
-            else:
-                return
-            date = photo.date
-            if known_id is None:
-                known_id = photo.id
-        else:
-            return
-
-
-    def __bool__(self):
-        return False
-
-    def __len__(self):
-        return 0
-
-    def pop_pending(self, pbar):
-        """Pops a pending entity off the queue and returns needed sleep."""
-        return 0
-
-
 class Downloader:
     """
     Download dialogs and their associated data, and dump them.
@@ -536,20 +467,16 @@ class Downloader:
         # Rather silly considering logs only last up to two days and
         # there isn't much information in them (due to their short life).
         chunks_left = dumper.max_chunks
-        entity_downloader = _EntityDownloader(
-            self.client,
-            dumper,
-            photo_fmt=self.media_fmt if 'chatphoto' in self.types else None
-        )
+        # TODO Download entities again
         entbar = tqdm.tqdm(entbar=tqdm.tqdm(unit='log events'))
         while True:
             start = time.time()
             result = self.client(req)
             __log__.debug('Downloaded another chunk of the admin log.')
-            entity_downloader.extend_pending(
-                itertools.chain(result.users, result.chats)
-            )
-            entity_downloader.pop_pending(entbar)
+            #entity_downloader.extend_pending(
+            #    itertools.chain(result.users, result.chats)
+            #)
+            #entity_downloader.pop_pending(entbar)
             if not result.events:
                 break
 
@@ -558,12 +485,12 @@ class Downloader:
                               types.ChannelAdminLogEventActionChangePhoto):
                     media_id1 = dumper.dump_media(event.action.new_photo)
                     media_id2 = dumper.dump_media(event.action.prev_photo)
-                    entity_downloader.download_profile_photo(
-                        event.action.new_photo, target, event.id
-                    )
-                    entity_downloader.download_profile_photo(
-                        event.action.prev_photo, target, event.id
-                    )
+                    #entity_downloader.download_profile_photo(
+                    #    event.action.new_photo, target, event.id
+                    #)
+                    #entity_downloader.download_profile_photo(
+                    #    event.action.prev_photo, target, event.id
+                    #)
                 else:
                     media_id1 = None
                     media_id2 = None
@@ -578,11 +505,11 @@ class Downloader:
             if chunks_left <= 0:
                 break
 
-        while entity_downloader:
-            start = time.time()
-            needed_sleep = entity_downloader.pop_pending(entbar)
-            dumper.commit()
-            time.sleep(max(needed_sleep - (time.time() - start), 0))
+        #while entity_downloader:
+        #    start = time.time()
+        #    needed_sleep = entity_downloader.pop_pending(entbar)
+        #    dumper.commit()
+        #    time.sleep(max(needed_sleep - (time.time() - start), 0))
 
         __log__.debug('Admin log from %s dumped',
                       utils.get_display_name(target))
