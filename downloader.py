@@ -5,6 +5,7 @@ import logging
 import mimetypes
 import os
 import time
+import queue
 from collections import deque, defaultdict
 
 import tqdm
@@ -22,6 +23,9 @@ VALID_TYPES = {
     'photo', 'document', 'video', 'audio', 'sticker', 'voice', 'chatphoto'
 }
 BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}/{remaining}, {rate_noinv_fmt}{postfix}]"
+
+
+QUEUE_TIMEOUT = 5
 
 
 class _EntityDownloader:
@@ -189,7 +193,14 @@ class Downloader:
         if self.types:
             self.types.add('unknown')  # Always allow "unknown" media types
 
-    def check_media(self, media):
+        # We're gonna need a few queues if we want to do things concurrently.
+        # None values should be inserted to notify that the dump has finished.
+        self._media_queue = queue.Queue()
+        self._user_queue = queue.Queue()
+        self._channel_queue = queue.Queue()
+        self._running = False
+
+    def _check_media(self, media):
         """
         Checks whether the given MessageMedia should be downloaded or not.
         """
@@ -199,7 +210,7 @@ class Downloader:
             return True
         return export_utils.get_media_type(media) in self.types
 
-    def download_media(self, msg, target_id, entities):
+    def _download_media(self, msg, target_id, entities):
         """
         Save media to disk using the self.media_fmt under OutputDirectory.
 
@@ -244,6 +255,51 @@ class Downloader:
 
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         return self.client.download_media(media, file=filename)
+
+    def _dump_full_entity(self, entity):
+        # TODO Dump full entity
+        pass
+
+    def _download_media_callback(self, media):
+        # TODO Download media
+        pass
+
+    def _download_users_callback(self, user):
+        # TODO Download users
+        pass
+
+    def _download_channels_callback(self, channel):
+        # TODO Download channels
+        pass
+
+    def _worker_thread(self, used_queue, sleep_wait, callback):
+        start = None
+        while self._running:
+            # We only set the start time once, to also include the time
+            # the queue takes; check needed since it calls continue.
+            if start is None:
+                start = time.time()
+            try:
+                item = used_queue.get(timeout=QUEUE_TIMEOUT)
+            except queue.Empty:
+                continue
+            if item is None:
+                break
+            else:
+                callback(item)
+            # Sleep 'sleep_wait' time, considering the time it took
+            # to invoke this request (delta between now and start).
+            time.sleep(max(sleep_wait - (time.time() - start), 0))
+            start = None
+
+    def start(self):
+        # TODO Get rid of save_messages and use this
+        self._running = True
+        try:
+
+            pass
+        finally:
+            self._running = False
 
     def save_messages(self, dumper, target_id):
         """
@@ -317,8 +373,8 @@ class Downloader:
 
             for m in history.messages:
                 if isinstance(m, types.Message):
-                    if self.check_media(m.media):
-                        self.download_media(m, target_id, entities)
+                    if self._check_media(m.media):
+                        self._download_media(m, target_id, entities)
 
                     fwd_id = dumper.dump_forward(m.fwd_from)
                     media_id = dumper.dump_media(m.media)
