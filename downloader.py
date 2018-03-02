@@ -126,7 +126,7 @@ class Downloader:
                         media_id=media_id
                     )
 
-    def _dump_admin_log(self, events, target):
+    def _dump_admin_log(self, events, target, entities):
         """
         Helper method to iterate the events from a GetAdminLogRequest
         and dump them into the Dumper, mostly to avoid excessive nesting.
@@ -139,9 +139,10 @@ class Downloader:
                               types.ChannelAdminLogEventActionChangePhoto):
                     media_id1 = self.dumper.dump_media(event.action.new_photo)
                     media_id2 = self.dumper.dump_media(event.action.prev_photo)
-                    # TODO Don't pass target, pass the actual user
-                    self.enqueue_media(event.action.new_photo, target, target)
-                    self.enqueue_media(event.action.prev_photo, target, target)
+                    self.enqueue_media(event.action.new_photo, target,
+                                       from_entity=entities[event.user_id])
+                    self.enqueue_media(event.action.prev_photo, target,
+                                       from_entity=entities[event.user_id])
                 else:
                     media_id1 = None
                     media_id2 = None
@@ -455,8 +456,12 @@ class Downloader:
                         result.uses, result.chats
                     ))
                     if result.events:
+                        entities = {
+                            utils.get_peer_id(x): x for x in itertools.chain(
+                                result.users, result.chats, (target,))
+                        }
                         log_req.max_id = self._dump_admin_log(
-                            result.events, target
+                            result.events, target, entities
                         )
                     else:
                         log_req = None
@@ -479,7 +484,12 @@ class Downloader:
                 ))
                 if not result.events:
                     break
-                log_req.max_id = self._dump_admin_log(result.events, target)
+                log_req.max_id = self._dump_admin_log(
+                    result.events, target, entities={
+                        utils.get_peer_id(x): x for x in itertools.chain(
+                            result.users, result.chats, (target,))
+                    }
+                )
                 time.sleep(max(1 - (time.time() - start), 0))
 
             __log__.info(
