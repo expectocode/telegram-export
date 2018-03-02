@@ -50,7 +50,6 @@ class Downloader:
         self._dumper_lock = threading.Lock()
         self._checked_entity_ids = set()
         self._media_bar = None
-        self.target = None  # TODO Not sure this is the best way
         # We're gonna need a few queues if we want to do things concurrently.
         # None values should be inserted to notify that the dump has finished.
         self._media_queue = queue.Queue()
@@ -75,12 +74,13 @@ class Downloader:
         """
         with self._dumper_lock:
             if isinstance(entity, types.UserFull):
-                self.enqueue_media(entity.profile_photo, entity.user)
+                user = entity.user
+                self.enqueue_media(entity.profile_photo, user, user)
                 photo_id = self.dumper.dump_media(entity.profile_photo)
                 self.dumper.dump_user(entity, photo_id=photo_id)
 
             elif isinstance(entity, types.Chat):
-                self.enqueue_media(entity.photo, entity)
+                self.enqueue_media(entity.photo, entity, entity)
                 photo_id = self.dumper.dump_media(entity.photo)
                 self.dumper.dump_chat(entity, photo_id=photo_id)
 
@@ -89,14 +89,14 @@ class Downloader:
                 chat = next(
                     x for x in entity.chats if x.id == entity.full_chat.id
                 )
-                self.enqueue_media(entity.full_chat.chat_photo, chat)
+                self.enqueue_media(entity.full_chat.chat_photo, chat, chat)
                 if chat.megagroup:
                     self.dumper.dump_supergroup(entity.full_chat, chat,
                                                 photo_id)
                 else:
                     self.dumper.dump_channel(entity.full_chat, chat, photo_id)
 
-    def _dump_messages(self, messages, target_id, entities):
+    def _dump_messages(self, messages, target, entities):
         """
         Helper method to iterate the messages from a GetMessageHistoryRequest
         and dump them into the Dumper, mostly to avoid excessive nesting.
@@ -106,23 +106,23 @@ class Downloader:
         with self._dumper_lock:
             for m in messages:
                 if isinstance(m, types.Message):
-                    self.enqueue_media(m, entities[m.from_id])
+                    self.enqueue_media(m, target, entities[m.from_id])
                     self.dumper.dump_message(
                         message=m,
-                        context_id=target_id,
+                        context_id=utils.get_peer_id(target),
                         forward_id=self.dumper.dump_forward(m.fwd_from),
                         media_id=self.dumper.dump_media(m.media)
                     )
                 elif isinstance(m, types.MessageService):
                     if isinstance(m.action, types.MessageActionChatEditPhoto):
                         media_id = self.dumper.dump_media(m.action.photo)
-                        self.enqueue_media(m.action.photo, entities[m.from_id],
-                                           known_id=m.id)
+                        self.enqueue_media(m.action.photo, target,
+                                           entities[m.from_id], known_id=m.id)
                     else:
                         media_id = None
                     self.dumper.dump_message_service(
                         message=m,
-                        context_id=target_id,
+                        context_id=utils.get_peer_id(target),
                         media_id=media_id
                     )
 
@@ -139,8 +139,9 @@ class Downloader:
                               types.ChannelAdminLogEventActionChangePhoto):
                     media_id1 = self.dumper.dump_media(event.action.new_photo)
                     media_id2 = self.dumper.dump_media(event.action.prev_photo)
-                    self.enqueue_media(event.action.new_photo, target)
-                    self.enqueue_media(event.action.prev_photo, target)
+                    # TODO Don't pass target, pass the actual user
+                    self.enqueue_media(event.action.new_photo, target, target)
+                    self.enqueue_media(event.action.prev_photo, target, target)
                 else:
                     media_id1 = None
                     media_id2 = None
@@ -207,7 +208,7 @@ class Downloader:
                     self._chat_queue.put(entity)
             # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
 
-    def enqueue_media(self, media, from_entity, known_id=None):
+    def enqueue_media(self, media, target, from_entity, known_id=None):
         """
         Enqueues the given message or media from the given context entity
         to be downloaded later. If the ID of the message is known it should
@@ -228,11 +229,11 @@ class Downloader:
             formatter = defaultdict(
                 str,
                 id=msg.id,
-                context_id=utils.get_peer_id(self.target),
+                context_id=utils.get_peer_id(target),
                 sender_id=msg.from_id or 0,
                 ext=utils.get_extension(media) or '.bin',
                 type=export_utils.get_media_type(media) or 'unknown',
-                name=utils.get_display_name(self.target) or 'unknown',
+                name=utils.get_display_name(target) or 'unknown',
                 sender_name=utils.get_display_name(
                     from_entity) or 'unknown'
             )
@@ -263,19 +264,19 @@ class Downloader:
                 known_id = known_id or media.id
             else:
                 date = datetime.datetime.now()
-                known_id = known_id or utils.get_peer_id(self.target)
+                known_id = known_id or utils.get_peer_id(target)
 
             location, file_size = export_utils.get_file_location(media)
             formatter = defaultdict(
                 str,
                 id=known_id,
-                context_id=utils.get_peer_id(self.target),
-                sender_id=utils.get_peer_id(self.target),
+                context_id=utils.get_peer_id(target),
+                sender_id=utils.get_peer_id(target),
                 ext='.jpg',
                 type='chatphoto',
                 filename=date.strftime('chatphoto_%Y-%m-%d_%H-%M-%S'),
-                name=utils.get_display_name(self.target) or 'unknown',
-                sender_name=utils.get_display_name(self.target) or 'unknown'
+                name=utils.get_display_name(target) or 'unknown',
+                sender_name=utils.get_display_name(target) or 'unknown'
             )
             filename = date.strftime(self.media_fmt).format_map(formatter)
             if not filename.endswith(formatter['ext']):
@@ -319,7 +320,7 @@ class Downloader:
         """
         self._running = True
         target_in = self.client.get_input_entity(target_id)
-        target = self.target = self.client.get_entity(target_in)
+        target = self.client.get_entity(target_in)
         target_id = utils.get_peer_id(target)
 
         found = self.dumper.get_message_count(target_id)
@@ -407,7 +408,7 @@ class Downloader:
                 entities = {utils.get_peer_id(x): x for x in itertools.chain(
                     history.users, history.chats, (target,)
                 )}
-                self._dump_messages(history.messages, target_id, entities)
+                self._dump_messages(history.messages, target, entities)
 
                 # Determine whether to continue dumping or we're done
                 count = len(history.messages)
