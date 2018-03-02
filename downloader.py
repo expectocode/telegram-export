@@ -140,43 +140,6 @@ class Downloader:
                     self._channel_queue.put(entity)
             # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
 
-    @staticmethod
-    def _get_file_location(media):
-        location = file_size = None
-        if isinstance(media, types.MessageMediaPhoto):
-            media = media.photo
-
-        if isinstance(media, types.Photo):
-            for size in reversed(media.sizes):
-                if isinstance(size, types.PhotoSize):
-                    if isinstance(size.location, types.FileLocation):
-                        file_size = size.size
-                        location = size.location
-                        break
-        elif isinstance(media, types.MessageMediaDocument):
-            if isinstance(media.document, types.Document):
-                file_size = media.document.size
-                location = types.InputDocumentFileLocation(
-                    id=media.document.id,
-                    access_hash=media.document.access_hash,
-                    version=media.document.access_hash
-                )
-        elif isinstance(media, (types.UserProfilePhoto, types.ChatPhoto)):
-            file_size = 48 * 1024  # Average
-            if isinstance(media.photo_big, types.FileLocation):
-                location = media.photo_big
-            elif isinstance(media.photo_small, types.FileLocation):
-                location = media.photo_small
-
-        if isinstance(location, types.FileLocation):
-            location = types.InputFileLocation(
-                volume_id=location.volume_id,
-                local_id=location.local_id,
-                secret=location.secret
-            )
-
-        return location, file_size
-
     def enqueue_media(self, media, from_entity, known_id=None):
         if isinstance(media, types.Message):
             msg = media
@@ -184,7 +147,7 @@ class Downloader:
                 return
 
             media = msg.media
-            location, file_size = self._get_file_location(media)
+            location, file_size = export_utils.get_file_location(media)
             if not location:
                 return
 
@@ -226,7 +189,7 @@ class Downloader:
                 date = datetime.datetime.now()
                 known_id = utils.get_peer_id(self.target)
 
-            location, file_size = self._get_file_location(media)
+            location, file_size = export_utils.get_file_location(media)
             formatter = defaultdict(
                 str,
                 id=known_id,
