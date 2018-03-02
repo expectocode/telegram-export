@@ -63,6 +63,35 @@ def decode_msg_entities(string):
     return parsed
 
 
+def get_media_type(media):
+    """
+    Returns a friendly type for the given media.
+    """
+    if not media:
+        return ''
+
+    if isinstance(media, types.MessageMediaPhoto):
+        return 'photo'
+
+    elif isinstance(media, types.MessageMediaDocument):
+        if isinstance(media, types.Document):
+            for attr in media.attributes:
+                if isinstance(attr, types.DocumentAttributeSticker):
+                    return 'document.sticker'
+                elif isinstance(attr, types.DocumentAttributeVideo):
+                    return 'document.video'
+                elif isinstance(attr, types.DocumentAttributeAnimated):
+                    return 'document.animated'
+                elif isinstance(attr, types.DocumentAttributeAudio):
+                    if attr.voice:
+                        return 'document.voice'
+                    else:
+                        return 'document.audio'
+        return 'document'
+
+    return 'unknown'
+
+
 def action_to_name(action):
     """
     Returns a namespace'd "friendly" name for the given

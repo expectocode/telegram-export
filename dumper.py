@@ -434,27 +434,12 @@ class Dumper:
                 row['secret'] = 0
 
         elif isinstance(media, types.MessageMediaDocument):
-            row['type'] = 'document'
+            row['type'] = utils.get_media_type(media)
             doc = media.document
             if isinstance(doc, types.Document):
                 row['mime_type'] = doc.mime_type
                 row['size'] = doc.size
                 row['thumbnail_id'] = self.dump_media(doc.thumb)
-                subtype = None
-                for attr in doc.attributes:
-                    if isinstance(attr, types.DocumentAttributeFilename):
-                        row['name'] = attr.file_name
-                    elif isinstance(attr, types.DocumentAttributeAudio):
-                        subtype = 'audio'
-                    elif isinstance(attr, types.DocumentAttributeVideo):
-                        subtype = 'video'
-                    elif isinstance(attr, types.DocumentAttributeSticker):
-                        subtype = 'sticker'
-                    elif isinstance(attr, types.DocumentAttributeAnimated):
-                        subtype = 'animated'
-                if subtype:
-                    row['type'] += '.' + subtype
-
                 row['local_id'] = doc.id
                 row['volume_id'] = doc.version
                 row['secret'] = doc.access_hash

@@ -7,11 +7,13 @@ import os
 import time
 from collections import deque, defaultdict
 
+import tqdm
 from telethon import utils
 from telethon.errors import ChatAdminRequiredError
 from telethon.extensions import BinaryReader
 from telethon.tl import types, functions
-import tqdm
+
+import utils as export_utils
 
 __log__ = logging.getLogger(__name__)
 
@@ -187,34 +189,6 @@ class Downloader:
         if self.types:
             self.types.add('unknown')  # Always allow "unknown" media types
 
-    @staticmethod
-    def _get_media_type(media):
-        """
-        Returns the friendly type string for the given MessageMedia.
-        """
-        if not media:
-            return ''
-        if isinstance(media, types.MessageMediaPhoto):
-            return 'photo'
-        elif isinstance(media, types.MessageMediaDocument):
-            if not isinstance(media, types.Document):
-                return False
-            for attr in media.attributes:
-                if isinstance(attr, types.DocumentAttributeSticker):
-                    return 'sticker'
-                elif isinstance(attr, types.DocumentAttributeVideo):
-                    return 'video'
-                elif isinstance(attr, types.DocumentAttributeAudio):
-                    if attr.voice:
-                        return 'voice'
-                    return 'audio'
-            return 'document'
-        return 'unknown'
-
-    @staticmethod
-    def _get_media_extension(media):
-        pass
-
     def check_media(self, media):
         """
         Checks whether the given MessageMedia should be downloaded or not.
@@ -223,7 +197,7 @@ class Downloader:
             return False
         if not self.types:
             return True
-        return self._get_media_type(media) in self.types
+        return export_utils.get_media_type(media) in self.types
 
     def download_media(self, msg, target_id, entities):
         """
@@ -248,7 +222,7 @@ class Downloader:
             context_id=target_id,
             sender_id=msg.from_id or 0,
             ext=utils.get_extension(media) or '.bin',
-            type=self._get_media_type(media) or 'unknown',
+            type=export_utils.get_media_type(media) or 'unknown',
             name=utils.get_display_name(entities[target_id]) or 'unknown',
             sender_name=utils.get_display_name(
                 entities.get(msg.from_id)) or 'unknown'
