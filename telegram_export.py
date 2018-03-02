@@ -205,6 +205,16 @@ def list_or_search_dialogs(args, client):
     client.disconnect()
 
 
+def entities_from_str(client, string):
+    """Helper function to load entities from the config file"""
+    for who in string.split(','):
+        who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
+        if re.match(r'[^+]-?\d+', who):
+            yield client.get_input_entity(int(who))
+        else:
+            yield client.get_input_entity(who)
+
+
 def main():
     """The main telegram-export program.
        Goes through the configured dialogs and dumps them into the database"""
@@ -236,7 +246,7 @@ def main():
     if args.list_dialogs or args.search_string:
         return list_or_search_dialogs(args, client)
 
-    downloader = Downloader(client, config['Dumper'])
+    downloader = Downloader(client, config['Dumper'], dumper)
     cache_file = os.path.join(absolute_session_name + '.tl')
     try:
         if args.download_past_media:
@@ -246,25 +256,22 @@ def main():
         dumper.check_self_user(client.get_me(input_peer=True).user_id)
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
-            entities = downloader.load_entities_from_str(
-                dumper.config['Whitelist']
-            )
+            entities = entities_from_str(client, dumper.config['Whitelist'])
             for who in entities:
-                downloader.save_messages(dumper, who)
+                downloader.start(who)
 
         elif 'Blacklist' in dumper.config:
             # May be blacklist, so save the IDs on who to avoid
-            entities = downloader.load_entities_from_str(
-                dumper.config['Blacklist']
-            )
+            entities = entities_from_str(client, dumper.config['Blacklist'])
             avoid = set(utils.get_peer_id(x) for x in entities)
-            for entity in downloader.fetch_dialogs(cache_file=cache_file):
-                if utils.get_peer_id(entity) not in avoid:
-                    downloader.save_messages(dumper, entity)
+            # TODO Should this get_dialogs call be cached? How?
+            for dialog in client.get_dialogs(limit=None):
+                if utils.get_peer_id(dialog.entity) not in avoid:
+                    downloader.start(dialog.entity)
         else:
             # Neither blacklist nor whitelist - get all
-            for entity in downloader.fetch_dialogs(cache_file=cache_file):
-                downloader.save_messages(dumper, entity)
+            for entity in client.get_dialogs(limit=None):
+                downloader.start(entity)
 
     except KeyboardInterrupt:
         pass

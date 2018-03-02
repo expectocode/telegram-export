@@ -111,7 +111,7 @@ class TestDumpAll(unittest.TestCase):
         )
 
         self.client(functions.messages.DeleteHistoryRequest('me', 0))
-        downloader = Downloader(self.client, self.dumper_config)
+        downloader = Downloader(self.client, self.dumper_config, dumper)
 
         which = 1
         for amount, what in actions:
@@ -125,7 +125,7 @@ class TestDumpAll(unittest.TestCase):
                 print('Dumping', amount, 'messages...')
                 chunks = (amount + dumper.chunk_size - 1) // dumper.chunk_size
                 dumper.max_chunks = chunks
-                downloader.save_messages(dumper, 'me')
+                downloader.start('me')
 
         messages = self.client.get_message_history('me', limit=None)
         print('Full history')
