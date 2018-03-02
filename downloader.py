@@ -4,8 +4,9 @@ import itertools
 import logging
 import mimetypes
 import os
-import time
 import queue
+import threading
+import time
 from collections import deque, defaultdict
 
 import tqdm
@@ -39,69 +40,20 @@ class _EntityDownloader:
         self.client = client
         self.dumper = dumper
         self.photo_fmt = photo_fmt
-        self._pending = deque()
-        self._pending_ids = set()
-        self._dumped_ids = set()
 
     @property
     def dumped_count(self):
         """Returns the count of dumped entities."""
-        return len(self._dumped_ids)
+        return 0
 
     @property
     def total_count(self):
         """Returns the total count of seen entities."""
-        return len(self._pending_ids) + len(self._dumped_ids)
+        return 0
 
     def extend_pending(self, entities):
         """Extends the queue of pending entities."""
-        for entity in entities:
-            if isinstance(entity, types.User):
-                if entity.deleted or entity.min:
-                    continue  # Empty name would cause IntegrityError
-            elif isinstance(entity, types.Chat):
-                # No need to queue these, extra request not needed
-                self._dump_entity(entity)
-                continue
-            elif isinstance(entity, types.Channel):
-                if entity.left:
-                    continue  # Getting full info triggers ChannelPrivateError
-            else:
-                # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
-                continue
-            eid = utils.get_peer_id(entity)
-            if eid not in self._dumped_ids and not eid in self._pending_ids:
-                self._pending_ids.add(eid)
-                self._pending.append(entity)
-
-    def _dump_entity(self, entity):
-        needed_sleep = 1
-        eid = utils.get_peer_id(entity)
-
-        if isinstance(entity, types.User):
-            full = self.client(functions.users.GetFullUserRequest(entity))
-            photo_id = self.dumper.dump_media(full.profile_photo)
-            self.dumper.dump_user(full, photo_id=photo_id)
-            self.download_profile_photo(full.profile_photo, entity)
-
-        elif isinstance(entity, types.Chat):
-            needed_sleep = 0
-            photo_id = self.dumper.dump_media(entity.photo)
-            self.dumper.dump_chat(entity, photo_id=photo_id)
-            self.download_profile_photo(entity.photo, entity)
-
-        elif isinstance(entity, types.Channel):
-            full = self.client(functions.channels.GetFullChannelRequest(entity))
-            photo_id = self.dumper.dump_media(full.full_chat.chat_photo)
-            if entity.megagroup:
-                self.dumper.dump_supergroup(full.full_chat, entity, photo_id)
-            else:
-                self.dumper.dump_channel(full.full_chat, entity, photo_id)
-            self.download_profile_photo(full.full_chat.chat_photo, entity)
-
-        self._pending_ids.discard(eid)
-        self._dumped_ids.add(eid)
-        return needed_sleep
+        pass
 
     def download_profile_photo(self, photo, target, known_id=None):
         """
@@ -162,17 +114,13 @@ class _EntityDownloader:
         ), file=filename, part_size_kb=256)
 
     def __bool__(self):
-        return bool(self._pending)
+        return False
 
     def __len__(self):
-        return len(self._pending)
+        return 0
 
     def pop_pending(self, pbar):
         """Pops a pending entity off the queue and returns needed sleep."""
-        if self._pending:
-            sleep = self._dump_entity(self._pending.popleft())
-            pbar.update(1)  # Increment bar
-            return sleep
         return 0
 
 
@@ -193,6 +141,9 @@ class Downloader:
         if self.types:
             self.types.add('unknown')  # Always allow "unknown" media types
 
+        self.dumper = None  # TODO Set an actual dumper
+        self._dumper_lock = threading.Lock()
+        self._checked_entity_ids = set()
         # We're gonna need a few queues if we want to do things concurrently.
         # None values should be inserted to notify that the dump has finished.
         self._media_queue = queue.Queue()
@@ -257,20 +208,66 @@ class Downloader:
         return self.client.download_media(media, file=filename)
 
     def _dump_full_entity(self, entity):
-        # TODO Dump full entity
-        pass
+        with self._dumper_lock:
+            if isinstance(entity, types.UserFull):
+                self._media_queue.put(entity.profile_photo)
+                photo_id = self.dumper.dump_media(entity.profile_photo)
+                self.dumper.dump_user(entity, photo_id=photo_id)
+
+            elif isinstance(entity, types.Chat):
+                self._media_queue.put(entity.photo)
+                photo_id = self.dumper.dump_media(entity.photo)
+                self.dumper.dump_chat(entity, photo_id=photo_id)
+
+            elif isinstance(entity, types.messages.ChatFull):
+                self._media_queue.put(entity.full_chat.chat_photo)
+                photo_id = self.dumper.dump_media(entity.full_chat.chat_photo)
+                chat = next(
+                    x for x in entity.chats if x.id == entity.full_chat.id
+                )
+                if chat.megagroup:
+                    self.dumper.dump_supergroup(entity.full_chat, chat,
+                                                photo_id)
+                else:
+                    self.dumper.dump_channel(entity.full_chat, chat, photo_id)
 
     def _download_media_callback(self, media):
         # TODO Download media
         pass
 
     def _download_users_callback(self, user):
-        # TODO Download users
-        pass
+        self._dump_full_entity(self.client(
+            functions.users.GetFullUserRequest(user)
+        ))
 
     def _download_channels_callback(self, channel):
-        # TODO Download channels
-        pass
+        self._dump_full_entity(self.client(
+            functions.channels.GetFullChannelRequest(channel)
+        ))
+
+    def enqueue_entities(self, entities):
+        for entity in entities:
+            if isinstance(entity, types.User):
+                if entity.deleted or entity.min:
+                    continue  # Empty name would cause IntegrityError
+            elif isinstance(entity, types.Chat):
+                # No need to queue these, extra request not needed
+                self._dump_full_entity(entity)
+                continue
+            elif isinstance(entity, types.Channel):
+                if entity.left:
+                    continue  # Getting full info triggers ChannelPrivateError
+            else:
+                # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
+                continue
+
+            eid = utils.get_peer_id(entity)
+            if eid not in self._checked_entity_ids:
+                self._checked_entity_ids.add(eid)
+                if isinstance(entity, types.User):
+                    self._user_queue.put(entity)
+                elif isinstance(entity, types.Channel):
+                    self._channel_queue.put(entity)
 
     def _worker_thread(self, used_queue, sleep_wait, callback):
         start = None
@@ -295,11 +292,23 @@ class Downloader:
     def start(self):
         # TODO Get rid of save_messages and use this
         self._running = True
+        threads = [
+            threading.Thread(target=self._worker_thread, args=(
+                self._user_queue, 1.5, self._download_users_callback
+            )),
+            threading.Thread(target=self._worker_thread, args=(
+                self._channel_queue, 1.5, self._download_channels_callback
+            )),
+        ]
+        for thread in threads:
+            thread.start()
         try:
 
             pass
         finally:
             self._running = False
+            for thread in threads:
+                thread.join()
 
     def save_messages(self, dumper, target_id):
         """
