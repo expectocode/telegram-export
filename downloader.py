@@ -100,6 +100,30 @@ class Downloader:
                 else:
                     self.dumper.dump_channel(entity.full_chat, chat, photo_id)
 
+    def _dump_messages(self, messages, target_id, entities):
+        with self._dumper_lock:
+            for m in messages:
+                if isinstance(m, types.Message):
+                    self.enqueue_media(m, entities[m.from_id])
+                    self.dumper.dump_message(
+                        message=m,
+                        context_id=target_id,
+                        forward_id=self.dumper.dump_forward(m.fwd_from),
+                        media_id=self.dumper.dump_media(m.media)
+                    )
+                elif isinstance(m, types.MessageService):
+                    if isinstance(m.action, types.MessageActionChatEditPhoto):
+                        media_id = self.dumper.dump_media(m.action.photo)
+                        self.enqueue_media(m.action.photo, entities[m.from_id],
+                                           known_id=m.id)
+                    else:
+                        media_id = None
+                    self.dumper.dump_message_service(
+                        message=m,
+                        context_id=target_id,
+                        media_id=media_id
+                    )
+
     def _media_progress(self, saved, total):
         pass
 
@@ -297,73 +321,40 @@ class Downloader:
                 start = time.time()
                 history = self.client(req)
 
-                # Get media needs access to the entities from this batch
-                entities = {utils.get_peer_id(x): x for x in
-                            itertools.chain(history.users, history.chats)}
-                entities[target_id] = target
-
-                # Queue users and chats for dumping
+                # Queue found entities so they can be dumped later
                 self.enqueue_entities(itertools.chain(
                     history.users, history.chats
                 ))
                 entbar.total = len(self._checked_entity_ids)
 
-                with self._dumper_lock:
-                    for m in history.messages:
-                        if isinstance(m, types.Message):
-                            self.enqueue_media(m, entities[m.from_id])
-                            self.dumper.dump_message(
-                                message=m,
-                                context_id=target_id,
-                                forward_id=self.dumper.dump_forward(m.fwd_from),
-                                media_id=self.dumper.dump_media(m.media)
-                            )
-                        elif isinstance(m, types.MessageService):
-                            if isinstance(m.action,
-                                          types.MessageActionChatEditPhoto):
-                                self.enqueue_media(
-                                    m.action.photo, entities[m.from_id],
-                                    known_id=m.id
-                                )
-                                media_id = self.dumper.dump_media(m.action.photo)
-                            else:
-                                media_id = None
-                            self.dumper.dump_message_service(
-                                message=m,
-                                context_id=target_id,
-                                media_id=media_id
-                            )
+                # Dump the messages from this batch
+                entities = {utils.get_peer_id(x): x for x in itertools.chain(
+                    history.users, history.chats, (target,)
+                )}
+                self._dump_messages(history.messages, target_id, entities)
 
-                total_messages = getattr(
-                    history, 'count', len(history.messages)
-                )
-                pbar.total = total_messages
+                # Determine whether to continue dumping or we're done
+                count = len(history.messages)
+                pbar.total = getattr(history, 'count', count)
+                pbar.update(count)
                 if history.messages:
                     # We may reinsert some we already have (so found > total)
-                    found = min(found + len(history.messages), total_messages)
+                    found = min(found + len(history.messages), pbar.total)
                     req.offset_id = min(m.id for m in history.messages)
                     req.offset_date = min(m.date for m in history.messages)
 
-                pbar.update(len(history.messages))
-
-                if len(history.messages) < req.limit:
-                    __log__.debug('Received less messages than limit, done.')
-                    # Receiving less messages than the limit means we have reached
-                    # the end, so we need to exit. Next time we'll start from offset
-                    # 0 again so we can check for new messages.
-                    with self._dumper_lock:
-                        max_msg_id = self.dumper.get_message_id(target_id, 'MAX')
-                        self.dumper.save_resume(target_id, stop_at=max_msg_id)
-                    break
-
+                # Receiving less messages than the limit means we have
+                # reached the end, so we need to exit. Next time we'll
+                # start from offset 0 again so we can check for new messages.
+                #
                 # We dump forward (message ID going towards 0), so as soon
                 # as the minimum message ID (now in offset ID) is less than
                 # the highest ID ("closest" bound we need to reach), stop.
-                if req.offset_id <= stop_at:
-                    __log__.debug('Reached already-dumped messages, done.')
+                if count < req.limit or req.offset_id <= stop_at:
+                    __log__.debug('Received less messages than limit, done.')
                     with self._dumper_lock:
-                        max_msg_id = self.dumper.get_message_id(target_id, 'MAX')
-                        self.dumper.save_resume(target_id, stop_at=max_msg_id)
+                        max_id = self.dumper.get_message_id(target_id, 'MAX')
+                        self.dumper.save_resume(target_id, stop_at=max_id)
                     break
 
                 # Keep track of the last target ID (smallest one),
@@ -371,7 +362,7 @@ class Downloader:
                 with self._dumper_lock:
                     self.dumper.save_resume(
                         target_id, msg=req.offset_id, msg_date=req.offset_date,
-                        stop_at=stop_at  # We DO want to preserve stop_at though.
+                        stop_at=stop_at  # We DO want to preserve stop_at.
                     )
                     self.dumper.commit()
 
@@ -383,17 +374,18 @@ class Downloader:
                 # 30 request in 30 seconds (sleep a second *between* requests)
                 time.sleep(max(1 - (time.time() - start), 0))
 
-            with self._dumper_lock:
-                self.dumper.commit()
-
+            # Message loop complete, wait for the queues to empty
             pbar.n = pbar.total
             pbar.close()
+            with self._dumper_lock:
+                self.dumper.commit()
 
             __log__.info(
                 'Done. Retrieving full information about %s missing entities.',
                 self._user_queue.qsize() + self._channel_queue.qsize()
             )
-            while not self._user_queue.empty() and not self._channel_queue.empty():
+            queues = (self._user_queue, self._channel_queue, self._media_queue)
+            while not all(x.empty() for x in queues):
                 time.sleep(1)
 
             entbar.n = entbar.total
