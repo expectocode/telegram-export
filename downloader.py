@@ -345,8 +345,9 @@ class Downloader:
                          initial=found, bar_format=BAR_FORMAT)
         entbar = tqdm.tqdm(unit=' entities', bar_format=BAR_FORMAT,
                            postfix={'chat': utils.get_display_name(target)})
-        medbar = tqdm.tqdm(unit='b', bar_format=BAR_FORMAT, unit_scale=True,
-                           postfix={'media': 'file size'})
+        medbar = tqdm.tqdm(unit='B', unit_divisor=1024, unit_scale=True,
+                           bar_format=BAR_FORMAT, postfix={'media': 'saved'})
+
         medbar.total = 0
 
         threads = [
