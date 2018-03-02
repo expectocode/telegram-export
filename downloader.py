@@ -5,7 +5,6 @@ import logging
 import mimetypes
 import os
 import queue
-import re
 import threading
 import time
 from collections import defaultdict
@@ -13,7 +12,6 @@ from collections import defaultdict
 import tqdm
 from telethon import utils
 from telethon.errors import ChatAdminRequiredError
-from telethon.extensions import BinaryReader
 from telethon.tl import types, functions
 
 import utils as export_utils
@@ -588,31 +586,3 @@ class Downloader:
                     ), file=filename)
                 time.sleep(1)
             msg_row = msg_cursor.fetchone()
-
-    def fetch_dialogs(self, cache_file='dialogs.tl', force=False):
-        """Get a list of dialogs, and dump new data from them"""
-        # TODO What to do about cache invalidation?
-        if not force and os.path.isfile(cache_file):
-            with open(cache_file, 'rb') as f, BinaryReader(stream=f) as reader:
-                entities = []
-                while True:
-                    try:
-                        entities.append(reader.tgread_object())
-                    except BufferError:
-                        break  # No more data left to read
-                return entities
-        with open(cache_file, 'wb') as f:
-            entities = [d.entity for d in self.client.get_dialogs(limit=None)]
-            for entity in entities:
-                f.write(bytes(entity))
-
-        return entities
-
-    def load_entities_from_str(self, string):
-        """Helper function to load entities from the config file"""
-        for who in string.split(','):
-            who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
-            if re.match(r'[^+]-?\d+', who):
-                yield self.client.get_input_entity(int(who))
-            else:
-                yield self.client.get_input_entity(who)
