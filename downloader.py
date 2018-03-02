@@ -232,7 +232,9 @@ class Downloader:
 
         elif isinstance(media, (types.Photo,
                                 types.UserProfilePhoto, types.ChatPhoto)):
-            # TODO Check that chatphoto is allowed
+            if 'chatphoto' not in self.types:
+                return
+
             if isinstance(media, types.Photo):
                 date = media.date
                 known_id = known_id or media.id
