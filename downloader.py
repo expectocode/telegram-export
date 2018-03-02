@@ -107,7 +107,7 @@ class Downloader:
         with self._dumper_lock:
             for m in messages:
                 if isinstance(m, types.Message):
-                    self.enqueue_media(m, target, entities[m.from_id])
+                    self.enqueue_media(m, target, entities.get(m.from_id))
                     self.dumper.dump_message(
                         message=m,
                         context_id=utils.get_peer_id(target),
@@ -118,7 +118,7 @@ class Downloader:
                     if isinstance(m.action, types.MessageActionChatEditPhoto):
                         media_id = self.dumper.dump_media(m.action.photo)
                         self.enqueue_media(m.action.photo, target,
-                                           entities[m.from_id], known_id=m.id)
+                                           entities.get(m.from_id), known_id=m.id)
                     else:
                         media_id = None
                     self.dumper.dump_message_service(
@@ -499,7 +499,7 @@ class Downloader:
                 start = time.time()
                 result = self.client(req)
                 self.enqueue_entities(itertools.chain(
-                    result.uses, result.chats
+                    result.users, result.chats
                 ))
                 if not result.events:
                     break
