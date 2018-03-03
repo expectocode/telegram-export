@@ -5,8 +5,6 @@ import itertools
 import logging
 import mimetypes
 import os
-import queue
-import threading
 import time
 from collections import defaultdict
 
@@ -49,14 +47,13 @@ class Downloader:
             self.types.add('unknown')  # Always allow "unknown" media types
 
         self.dumper = dumper
-        self._dumper_lock = threading.Lock()
         self._checked_entity_ids = set()
         self._media_bar = None
         # We're gonna need a few queues if we want to do things concurrently.
         # None values should be inserted to notify that the dump has finished.
-        self._media_queue = queue.Queue()
-        self._user_queue = queue.Queue()
-        self._chat_queue = queue.Queue()
+        self._media_queue = asyncio.Queue()
+        self._user_queue = asyncio.Queue()
+        self._chat_queue = asyncio.Queue()
         self._running = False
 
     def _check_media(self, media):
@@ -74,29 +71,28 @@ class Downloader:
         Dumps the full entity into the Dumper, also enqueuing their profile
         photo if any so it can be downloaded later by a different thread.
         """
-        with self._dumper_lock:
-            if isinstance(entity, types.UserFull):
-                user = entity.user
-                self.enqueue_media(entity.profile_photo, user, user)
-                photo_id = self.dumper.dump_media(entity.profile_photo)
-                self.dumper.dump_user(entity, photo_id=photo_id)
+        if isinstance(entity, types.UserFull):
+            user = entity.user
+            self.enqueue_media(entity.profile_photo, user, user)
+            photo_id = self.dumper.dump_media(entity.profile_photo)
+            self.dumper.dump_user(entity, photo_id=photo_id)
 
-            elif isinstance(entity, types.Chat):
-                self.enqueue_media(entity.photo, entity, entity)
-                photo_id = self.dumper.dump_media(entity.photo)
-                self.dumper.dump_chat(entity, photo_id=photo_id)
+        elif isinstance(entity, types.Chat):
+            self.enqueue_media(entity.photo, entity, entity)
+            photo_id = self.dumper.dump_media(entity.photo)
+            self.dumper.dump_chat(entity, photo_id=photo_id)
 
-            elif isinstance(entity, types.messages.ChatFull):
-                photo_id = self.dumper.dump_media(entity.full_chat.chat_photo)
-                chat = next(
-                    x for x in entity.chats if x.id == entity.full_chat.id
-                )
-                self.enqueue_media(entity.full_chat.chat_photo, chat, chat)
-                if chat.megagroup:
-                    self.dumper.dump_supergroup(entity.full_chat, chat,
-                                                photo_id)
-                else:
-                    self.dumper.dump_channel(entity.full_chat, chat, photo_id)
+        elif isinstance(entity, types.messages.ChatFull):
+            photo_id = self.dumper.dump_media(entity.full_chat.chat_photo)
+            chat = next(
+                x for x in entity.chats if x.id == entity.full_chat.id
+            )
+            self.enqueue_media(entity.full_chat.chat_photo, chat, chat)
+            if chat.megagroup:
+                self.dumper.dump_supergroup(entity.full_chat, chat,
+                                            photo_id)
+            else:
+                self.dumper.dump_channel(entity.full_chat, chat, photo_id)
 
     def _dump_messages(self, messages, target, entities):
         """
@@ -105,28 +101,27 @@ class Downloader:
 
         Also enqueues any media to be downloaded later by a different thread.
         """
-        with self._dumper_lock:
-            for m in messages:
-                if isinstance(m, types.Message):
-                    self.enqueue_media(m, target, entities.get(m.from_id))
-                    self.dumper.dump_message(
-                        message=m,
-                        context_id=utils.get_peer_id(target),
-                        forward_id=self.dumper.dump_forward(m.fwd_from),
-                        media_id=self.dumper.dump_media(m.media)
-                    )
-                elif isinstance(m, types.MessageService):
-                    if isinstance(m.action, types.MessageActionChatEditPhoto):
-                        media_id = self.dumper.dump_media(m.action.photo)
-                        self.enqueue_media(m.action.photo, target,
-                                           entities.get(m.from_id), known_id=m.id)
-                    else:
-                        media_id = None
-                    self.dumper.dump_message_service(
-                        message=m,
-                        context_id=utils.get_peer_id(target),
-                        media_id=media_id
-                    )
+        for m in messages:
+            if isinstance(m, types.Message):
+                self.enqueue_media(m, target, entities.get(m.from_id))
+                self.dumper.dump_message(
+                    message=m,
+                    context_id=utils.get_peer_id(target),
+                    forward_id=self.dumper.dump_forward(m.fwd_from),
+                    media_id=self.dumper.dump_media(m.media)
+                )
+            elif isinstance(m, types.MessageService):
+                if isinstance(m.action, types.MessageActionChatEditPhoto):
+                    media_id = self.dumper.dump_media(m.action.photo)
+                    self.enqueue_media(m.action.photo, target,
+                                       entities.get(m.from_id), known_id=m.id)
+                else:
+                    media_id = None
+                self.dumper.dump_message_service(
+                    message=m,
+                    context_id=utils.get_peer_id(target),
+                    media_id=media_id
+                )
 
     def _dump_admin_log(self, events, target, entities):
         """
@@ -135,23 +130,22 @@ class Downloader:
 
         Also enqueues any media to be downloaded later by a different thread.
         """
-        with self._dumper_lock:
-            for event in events:
-                if isinstance(event.action,
-                              types.ChannelAdminLogEventActionChangePhoto):
-                    media_id1 = self.dumper.dump_media(event.action.new_photo)
-                    media_id2 = self.dumper.dump_media(event.action.prev_photo)
-                    self.enqueue_media(event.action.new_photo, target,
-                                       from_entity=entities[event.user_id])
-                    self.enqueue_media(event.action.prev_photo, target,
-                                       from_entity=entities[event.user_id])
-                else:
-                    media_id1 = None
-                    media_id2 = None
-                self.dumper.dump_admin_log_event(
-                    event, utils.get_peer_id(target), media_id1, media_id2
-                )
-            return min(e.id for e in events)
+        for event in events:
+            if isinstance(event.action,
+                          types.ChannelAdminLogEventActionChangePhoto):
+                media_id1 = self.dumper.dump_media(event.action.new_photo)
+                media_id2 = self.dumper.dump_media(event.action.prev_photo)
+                self.enqueue_media(event.action.new_photo, target,
+                                   from_entity=entities[event.user_id])
+                self.enqueue_media(event.action.prev_photo, target,
+                                   from_entity=entities[event.user_id])
+            else:
+                media_id1 = None
+                media_id2 = None
+            self.dumper.dump_admin_log_event(
+                event, utils.get_peer_id(target), media_id1, media_id2
+            )
+        return min(e.id for e in events)
 
     async def _media_callback(self, media, bar):
         """
@@ -320,7 +314,7 @@ class Downloader:
                 start = time.time()
             try:
                 item = used_queue.get(timeout=QUEUE_TIMEOUT)
-            except queue.Empty:
+            except asyncio.QueueEmpty:
                 continue
             if item is None:
                 break
@@ -351,6 +345,7 @@ class Downloader:
 
         medbar.total = 0
 
+        '''
         threads = [
             threading.Thread(target=self._worker_thread, args=(
                 self._user_queue, entbar, 1.5, self._users_callback
@@ -362,6 +357,8 @@ class Downloader:
                 self._media_queue, medbar, 1.5, self._media_callback
             ))
         ]
+        '''
+        threads = []
         for thread in threads:
             thread.start()
         try:
@@ -450,19 +447,17 @@ class Downloader:
                 # the highest ID ("closest" bound we need to reach), stop.
                 if count < req.limit or req.offset_id <= stop_at:
                     __log__.debug('Received less messages than limit, done.')
-                    with self._dumper_lock:
-                        max_id = self.dumper.get_message_id(target_id, 'MAX')
-                        self.dumper.save_resume(target_id, stop_at=max_id)
+                    max_id = self.dumper.get_message_id(target_id, 'MAX')
+                    self.dumper.save_resume(target_id, stop_at=max_id)
                     break
 
                 # Keep track of the last target ID (smallest one),
                 # so we can resume from here in case of interruption.
-                with self._dumper_lock:
-                    self.dumper.save_resume(
-                        target_id, msg=req.offset_id, msg_date=req.offset_date,
-                        stop_at=stop_at  # We DO want to preserve stop_at.
-                    )
-                    self.dumper.commit()
+                self.dumper.save_resume(
+                    target_id, msg=req.offset_id, msg_date=req.offset_date,
+                    stop_at=stop_at  # We DO want to preserve stop_at.
+                )
+                self.dumper.commit()
 
                 chunks_left -= 1  # 0 means infinite, will reach -1 and never 0
                 if chunks_left == 0:
@@ -492,8 +487,7 @@ class Downloader:
             # Message loop complete, wait for the queues to empty
             pbar.n = pbar.total
             pbar.close()
-            with self._dumper_lock:
-                self.dumper.commit()
+            self.dumper.commit()
 
             # This loop is specific to the admin log (to finish up)
             while log_req:
