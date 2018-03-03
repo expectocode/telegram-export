@@ -173,6 +173,7 @@ class Downloader:
                 part_size_kb=DOWNLOAD_PART_SIZE // 1024,
                 progress_callback=progress
             )
+            queue.task_done()
             await asyncio.sleep(max(1.5 - (time.time() - start), 0))
 
     async def _user_consumer(self, queue, bar):
@@ -181,6 +182,7 @@ class Downloader:
             self._dump_full_entity(await self.client(
                 functions.users.GetFullUserRequest(await queue.get())
             ))
+            queue.task_done()
             bar.update(1)
             await asyncio.sleep(max(1.5 - (time.time() - start), 0))
 
@@ -190,12 +192,11 @@ class Downloader:
             chat = await queue.get()
             if isinstance(chat, types.Chat):
                 self._dump_full_entity(chat)
-            elif isinstance(chat, types.Channel):
+            else:  # isinstance(chat, types.Channel):
                 self._dump_full_entity(await self.client(
                     functions.channels.GetFullChannelRequest(chat)
                 ))
-            else:
-                continue
+            queue.task_done()
             bar.update(1)
             await asyncio.sleep(max(1.5 - (time.time() - start), 0))
 
@@ -476,9 +477,9 @@ class Downloader:
                 'Done. Retrieving full information about %s missing entities.',
                 self._user_queue.qsize() + self._chat_queue.qsize()
             )
-            self._user_queue.join()
-            self._chat_queue.join()
-            self._media_queue.join()
+            await self._user_queue.join()
+            await self._chat_queue.join()
+            await self._media_queue.join()
         finally:
             self._running = False
             entbar.n = entbar.total
