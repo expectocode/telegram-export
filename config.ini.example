@@ -93,8 +93,8 @@ DBFileName = export
 # If the filenames are not unique, you may get files overwritten by other files!
 # Some uniqueness tips: Context IDs won't be the same, Message IDs won't be
 # repeated in the same context
-; MediaFilenameFmt = "usermedia/{name}{context_id}/{type}{filename}-{id}{ext}",
-MediaFilenameFmt = "usermedia/{name}{context_id}/{type}{filename}-{id}{ext}",
+; MediaFilenameFmt = usermedia/{name}{context_id}/{type}{filename}-{id}{ext}
+MediaFilenameFmt = usermedia/{name}{context_id}/{type}{filename}-{id}{ext}
 
 # Time after which an unchanged user should be dumped anyway, to avoid a long
 # information gap (see EXPLANATIONS.md). In minutes.
