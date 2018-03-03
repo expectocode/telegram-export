@@ -69,7 +69,7 @@ class Downloader:
     def _dump_full_entity(self, entity):
         """
         Dumps the full entity into the Dumper, also enqueuing their profile
-        photo if any so it can be downloaded later by a different thread.
+        photo if any so it can be downloaded later by a different coroutine.
         """
         if isinstance(entity, types.UserFull):
             user = entity.user
@@ -99,7 +99,7 @@ class Downloader:
         Helper method to iterate the messages from a GetMessageHistoryRequest
         and dump them into the Dumper, mostly to avoid excessive nesting.
 
-        Also enqueues any media to be downloaded later by a different thread.
+        Also enqueues any media to be downloaded later by a different coroutine.
         """
         for m in messages:
             if isinstance(m, types.Message):
@@ -128,7 +128,7 @@ class Downloader:
         Helper method to iterate the events from a GetAdminLogRequest
         and dump them into the Dumper, mostly to avoid excessive nesting.
 
-        Also enqueues any media to be downloaded later by a different thread.
+        Also enqueues any media to be downloaded later by a different coroutine.
         """
         for event in events:
             if isinstance(event.action,
@@ -203,7 +203,7 @@ class Downloader:
     def enqueue_entities(self, entities):
         """
         Enqueues the given iterable of entities to be dumped later by a
-        different thread. These in turn might enqueue profile photos.
+        different coroutine. These in turn might enqueue profile photos.
         """
         for entity in entities:
             eid = utils.get_peer_id(entity)
