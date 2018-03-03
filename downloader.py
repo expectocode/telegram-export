@@ -147,10 +147,7 @@ class Downloader:
             )
         return min(e.id for e in events)
 
-    async def _media_callback(self, media, bar):
-        """
-        Simple callback to download media from (location, filename, file_size).
-        """
+    async def _media_consumer(self, queue, bar):
         def progress(saved, total):
             if total is None:
                 # No size was found so the bar total wasn't incremented before
@@ -164,39 +161,43 @@ class Downloader:
                 # All chunks are of the same size and this isn't the last one
                 bar.update(DOWNLOAD_PART_SIZE)
 
-        location, file, file_size = media
-        if file_size is not None:
-            bar.total += file_size
+        while self._running:
+            start = time.time()
+            location, file, file_size = await queue.get()
+            if file_size is not None:
+                bar.total += file_size
 
-        os.makedirs(os.path.dirname(file), exist_ok=True)
-        await self.client.download_file(
-            location, file=file, file_size=file_size,
-            part_size_kb=DOWNLOAD_PART_SIZE // 1024, progress_callback=progress
-        )
+            os.makedirs(os.path.dirname(file), exist_ok=True)
+            await self.client.download_file(
+                location, file=file, file_size=file_size,
+                part_size_kb=DOWNLOAD_PART_SIZE // 1024,
+                progress_callback=progress
+            )
+            await asyncio.sleep(max(1.5 - (time.time() - start), 0))
 
-    async def _users_callback(self, user, bar):
-        """
-        Simple callback to retrieve a full user and dump it into the dumper.
-        """
-        self._dump_full_entity(await self.client(
-            functions.users.GetFullUserRequest(user)
-        ))
-        bar.update(1)
-
-    async def _chats_callback(self, chat, bar):
-        """
-        Simple callback to retrieve a full channel and dump it into the dumper.
-        """
-        n = 1
-        if isinstance(chat, types.Chat):
-            self._dump_full_entity(chat)
-        elif isinstance(chat, types.Channel):
+    async def _user_consumer(self, queue, bar):
+        while self._running:
+            start = time.time()
             self._dump_full_entity(await self.client(
-                functions.channels.GetFullChannelRequest(chat)
+                functions.users.GetFullUserRequest(await queue.get())
             ))
-        else:
-            n = 0
-        bar.update(n)
+            bar.update(1)
+            await asyncio.sleep(max(1.5 - (time.time() - start), 0))
+
+    async def _chat_consumer(self, queue, bar):
+        while self._running:
+            start = time.time()
+            chat = await queue.get()
+            if isinstance(chat, types.Chat):
+                self._dump_full_entity(chat)
+            elif isinstance(chat, types.Channel):
+                self._dump_full_entity(await self.client(
+                    functions.channels.GetFullChannelRequest(chat)
+                ))
+            else:
+                continue
+            bar.update(1)
+            await asyncio.sleep(max(1.5 - (time.time() - start), 0))
 
     def enqueue_entities(self, entities):
         """
@@ -212,14 +213,14 @@ class Downloader:
             if isinstance(entity, types.User):
                 if not entity.deleted and not entity.min:
                     # Empty name would cause IntegrityError
-                    self._user_queue.put(entity)
+                    self._user_queue.put_nowait(entity)
             elif isinstance(entity, types.Chat):
                 # Enqueue these under chats even though it doesn't need full
-                self._chat_queue.put(entity)
+                self._chat_queue.put_nowait(entity)
             elif isinstance(entity, types.Channel):
                 if not entity.left:
                     # Getting full info triggers ChannelPrivateError
-                    self._chat_queue.put(entity)
+                    self._chat_queue.put_nowait(entity)
             # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
 
     def enqueue_media(self, media, target, from_entity, known_id=None):
@@ -266,7 +267,7 @@ class Downloader:
                     filename = filename[:-1]
                 filename += formatter['ext']
 
-            self._media_queue.put((location, filename, file_size))
+            self._media_queue.put_nowait((location, filename, file_size))
 
         elif isinstance(media, (types.Photo,
                                 types.UserProfilePhoto, types.ChatPhoto)):
@@ -298,32 +299,7 @@ class Downloader:
                     filename = filename[:-1]
                 filename += formatter['ext']
 
-            self._media_queue.put((location, filename, file_size))
-
-    async def _worker_thread(self, used_queue, bar, sleep_wait, callback):
-        """
-        Worker thread to constantly pop items off the given queue and update
-        the given progress bar as required. Sleeps up to sleep_wait between
-        each request (a call to callback(queue item)).
-        """
-        start = None
-        while self._running:
-            # We only set the start time once, to also include the time
-            # the queue takes; check needed since it calls continue.
-            if start is None:
-                start = time.time()
-            try:
-                item = used_queue.get(timeout=QUEUE_TIMEOUT)
-            except asyncio.QueueEmpty:
-                continue
-            if item is None:
-                break
-            else:
-                callback(item, bar)
-            # Sleep 'sleep_wait' time, considering the time it took
-            # to invoke this request (delta between now and start).
-            await asyncio.sleep(max(sleep_wait - (time.time() - start), 0))
-            start = None
+            self._media_queue.put_nowait((location, filename, file_size))
 
     async def start(self, target_id):
         """
@@ -345,22 +321,9 @@ class Downloader:
 
         medbar.total = 0
 
-        '''
-        threads = [
-            threading.Thread(target=self._worker_thread, args=(
-                self._user_queue, entbar, 1.5, self._users_callback
-            )),
-            threading.Thread(target=self._worker_thread, args=(
-                self._chat_queue, entbar, 1.5, self._chats_callback
-            )),
-            threading.Thread(target=self._worker_thread, args=(
-                self._media_queue, medbar, 1.5, self._media_callback
-            ))
-        ]
-        '''
-        threads = []
-        for thread in threads:
-            thread.start()
+        asyncio.ensure_future(self._user_consumer(self._user_queue, entbar))
+        asyncio.ensure_future(self._chat_consumer(self._chat_queue, entbar))
+        asyncio.ensure_future(self._media_consumer(self._media_queue, medbar))
         try:
             self.enqueue_entities((target,))
             entbar.total = len(self._checked_entity_ids)
@@ -514,16 +477,12 @@ class Downloader:
             self._user_queue.join()
             self._chat_queue.join()
             self._media_queue.join()
-
-            entbar.n = entbar.total
-            entbar.close()
         finally:
             self._running = False
-            self._user_queue.put(None)
-            self._chat_queue.put(None)
-            self._media_queue.put(None)
-            for thread in threads:
-                thread.join()
+            entbar.n = entbar.total
+            entbar.close()
+            medbar.n = medbar.total
+            medbar.close()
 
     async def download_past_media(self, dumper, target_id):
         """
