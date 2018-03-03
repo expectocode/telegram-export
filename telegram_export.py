@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """The main telegram-export program"""
+import argparse
+import asyncio
 import configparser
 import difflib
 import logging
-import re
-import argparse
 import os
-
+import re
 import sys
-from telethon import TelegramClient, utils
-import tqdm
 
-from dumper import Dumper
+import tqdm
+from telethon import TelegramClient, utils
+
 from downloader import Downloader
+from dumper import Dumper
 from formatters import NAME_TO_FORMATTER
 
 logger = logging.getLogger('')  # Root logger
@@ -177,9 +178,9 @@ def find_dialog(dialogs, query, top=25, threshold=0.7):
     return matches[:top], num_not_shown
 
 
-def list_or_search_dialogs(args, client):
+async def list_or_search_dialogs(args, client):
     """List the user's dialogs and/or search them for a query"""
-    dialogs = client.get_dialogs(limit=None)[::-1]  # Oldest to newest
+    dialogs = await client.get_dialogs(limit=None)[::-1]  # Oldest to newest
     if args.list_dialogs:
         id_pad, username_pad = find_fmt_dialog_padding(dialogs)
         for dialog in dialogs:
@@ -205,17 +206,17 @@ def list_or_search_dialogs(args, client):
     client.disconnect()
 
 
-def entities_from_str(client, string):
+async def entities_from_str(client, string):
     """Helper function to load entities from the config file"""
     for who in string.split(','):
         who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
         if re.match(r'[^+]-?\d+', who):
-            yield client.get_input_entity(int(who))
+            yield await client.get_input_entity(int(who))
         else:
-            yield client.get_input_entity(who)
+            yield await client.get_input_entity(who)
 
 
-def main():
+async def main():
     """The main telegram-export program.
        Goes through the configured dialogs and dumps them into the database"""
     args = parse_args()
@@ -237,7 +238,7 @@ def main():
         config['Dumper']['OutputDirectory'],
         config['TelegramAPI']['SessionName']
     )
-    client = TelegramClient(
+    client = await TelegramClient(
         absolute_session_name,
         config['TelegramAPI']['ApiId'],
         config['TelegramAPI']['ApiHash']
@@ -250,28 +251,28 @@ def main():
     cache_file = os.path.join(absolute_session_name + '.tl')
     try:
         if args.download_past_media:
-            downloader.download_past_media(dumper, args.download_past_media)
+            await downloader.download_past_media(dumper, args.download_past_media)
             return
 
-        dumper.check_self_user(client.get_me(input_peer=True).user_id)
+        dumper.check_self_user((await client.get_me(input_peer=True)).user_id)
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
             entities = entities_from_str(client, dumper.config['Whitelist'])
-            for who in entities:
-                downloader.start(who)
+            async for who in entities:
+                await downloader.start(who)
 
         elif 'Blacklist' in dumper.config:
             # May be blacklist, so save the IDs on who to avoid
             entities = entities_from_str(client, dumper.config['Blacklist'])
-            avoid = set(utils.get_peer_id(x) for x in entities)
+            avoid = set(utils.get_peer_id(x) async for x in entities)
             # TODO Should this get_dialogs call be cached? How?
-            for dialog in client.get_dialogs(limit=None):
+            for dialog in await client.get_dialogs(limit=None):
                 if utils.get_peer_id(dialog.entity) not in avoid:
-                    downloader.start(dialog.entity)
+                    await downloader.start(dialog.entity)
         else:
             # Neither blacklist nor whitelist - get all
-            for entity in client.get_dialogs(limit=None):
-                downloader.start(entity)
+            for entity in await client.get_dialogs(limit=None):
+                await downloader.start(entity)
 
     except KeyboardInterrupt:
         pass
@@ -282,4 +283,6 @@ def main():
 
 
 if __name__ == '__main__':
-    exit(main() or 0)
+    loop = asyncio.get_event_loop()
+    ret = loop.run_until_complete(main())
+    exit(ret or 0)

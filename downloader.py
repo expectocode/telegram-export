@@ -1,4 +1,5 @@
 #!/bin/env python3
+import asyncio
 import datetime
 import itertools
 import logging
@@ -152,7 +153,7 @@ class Downloader:
                 )
             return min(e.id for e in events)
 
-    def _media_callback(self, media, bar):
+    async def _media_callback(self, media, bar):
         """
         Simple callback to download media from (location, filename, file_size).
         """
@@ -174,21 +175,21 @@ class Downloader:
             bar.total += file_size
 
         os.makedirs(os.path.dirname(file), exist_ok=True)
-        self.client.download_file(location, file=file,
-                                  file_size=file_size,
-                                  part_size_kb=DOWNLOAD_PART_SIZE // 1024,
-                                  progress_callback=progress)
+        await self.client.download_file(
+            location, file=file, file_size=file_size,
+            part_size_kb=DOWNLOAD_PART_SIZE // 1024, progress_callback=progress
+        )
 
-    def _users_callback(self, user, bar):
+    async def _users_callback(self, user, bar):
         """
         Simple callback to retrieve a full user and dump it into the dumper.
         """
-        self._dump_full_entity(self.client(
+        self._dump_full_entity(await self.client(
             functions.users.GetFullUserRequest(user)
         ))
         bar.update(1)
 
-    def _chats_callback(self, chat, bar):
+    async def _chats_callback(self, chat, bar):
         """
         Simple callback to retrieve a full channel and dump it into the dumper.
         """
@@ -196,7 +197,7 @@ class Downloader:
         if isinstance(chat, types.Chat):
             self._dump_full_entity(chat)
         elif isinstance(chat, types.Channel):
-            self._dump_full_entity(self.client(
+            self._dump_full_entity(await self.client(
                 functions.channels.GetFullChannelRequest(chat)
             ))
         else:
@@ -305,7 +306,7 @@ class Downloader:
 
             self._media_queue.put((location, filename, file_size))
 
-    def _worker_thread(self, used_queue, bar, sleep_wait, callback):
+    async def _worker_thread(self, used_queue, bar, sleep_wait, callback):
         """
         Worker thread to constantly pop items off the given queue and update
         the given progress bar as required. Sleeps up to sleep_wait between
@@ -327,16 +328,16 @@ class Downloader:
                 callback(item, bar)
             # Sleep 'sleep_wait' time, considering the time it took
             # to invoke this request (delta between now and start).
-            time.sleep(max(sleep_wait - (time.time() - start), 0))
+            await asyncio.sleep(max(sleep_wait - (time.time() - start), 0))
             start = None
 
-    def start(self, target_id):
+    async def start(self, target_id):
         """
         Starts the dump with the given target ID.
         """
         self._running = True
-        target_in = self.client.get_input_entity(target_id)
-        target = self.client.get_entity(target_in)
+        target_in = await self.client.get_input_entity(target_id)
+        target = await self.client.get_entity(target_in)
         target_id = utils.get_peer_id(target)
 
         found = self.dumper.get_message_count(target_id)
@@ -380,7 +381,7 @@ class Downloader:
                           (types.InputPeerChat, types.InputPeerChannel)):
                 try:
                     __log__.info('Getting participants...')
-                    participants = self.client.get_participants(target_in)
+                    participants = await self.client.get_participants(target_in)
                     added, removed = self.dumper.dump_participants_delta(
                         target_id, ids=[x.id for x in participants]
                     )
@@ -405,7 +406,7 @@ class Downloader:
                     target_in, q='', min_id=0, max_id=0, limit=1
                 )
                 try:
-                    self.client(log_req)
+                    await self.client(log_req)
                     log_req.limit = 100
                 except ChatAdminRequiredError:
                     log_req = None
@@ -417,7 +418,7 @@ class Downloader:
             # is interlaced as well to dump both at the same time.
             while True:
                 start = time.time()
-                history = self.client(req)
+                history = await self.client(req)
                 # Queue found entities so they can be dumped later
                 self.enqueue_entities(itertools.chain(
                     history.users, history.chats
@@ -470,7 +471,7 @@ class Downloader:
 
                 # Interlace with the admin log request if any
                 if log_req:
-                    result = self.client(log_req)
+                    result = await self.client(log_req)
                     self.enqueue_entities(itertools.chain(
                         result.users, result.chats
                     ))
@@ -486,7 +487,7 @@ class Downloader:
                         log_req = None
 
                 # 30 request in 30 seconds (sleep a second *between* requests)
-                time.sleep(max(1 - (time.time() - start), 0))
+                await asyncio.sleep(max(1 - (time.time() - start), 0))
 
             # Message loop complete, wait for the queues to empty
             pbar.n = pbar.total
@@ -497,7 +498,7 @@ class Downloader:
             # This loop is specific to the admin log (to finish up)
             while log_req:
                 start = time.time()
-                result = self.client(log_req)
+                result = await self.client(log_req)
                 self.enqueue_entities(itertools.chain(
                     result.users, result.chats
                 ))
@@ -508,7 +509,7 @@ class Downloader:
                                 result.users, result.chats, (target,))
                         }
                     )
-                    time.sleep(max(1 - (time.time() - start), 0))
+                    await asyncio.sleep(max(1 - (time.time() - start), 0))
                 else:
                     log_req = None
 
@@ -516,9 +517,9 @@ class Downloader:
                 'Done. Retrieving full information about %s missing entities.',
                 self._user_queue.qsize() + self._chat_queue.qsize()
             )
-            queues = (self._user_queue, self._chat_queue, self._media_queue)
-            while not all(x.empty() for x in queues):
-                time.sleep(1)
+            self._user_queue.join()
+            self._chat_queue.join()
+            self._media_queue.join()
 
             entbar.n = entbar.total
             entbar.close()
@@ -530,7 +531,7 @@ class Downloader:
             for thread in threads:
                 thread.join()
 
-    def download_past_media(self, dumper, target_id):
+    async def download_past_media(self, dumper, target_id):
         """
         Downloads the past media that has already been dumped into the
         database but has not been downloaded for the given target ID yet.
@@ -539,8 +540,8 @@ class Downloader:
         will be *ignored* and not re-downloaded again.
         """
         # TODO Should this respect and download only allowed media? Or all?
-        target_in = self.client.get_input_entity(target_id)
-        target = self.client.get_entity(target_in)
+        target_in = await self.client.get_input_entity(target_id)
+        target = await self.client.get_entity(target_in)
         target_id = utils.get_peer_id(target)
 
         msg_cursor = dumper.conn.cursor()
@@ -604,16 +605,16 @@ class Downloader:
                 __log__.info('Downloading to %s', filename)
                 os.makedirs(os.path.dirname(filename), exist_ok=True)
                 if media_type == 'document':
-                    self.client.download_file(types.InputDocumentFileLocation(
+                    await self.client.download_file(types.InputDocumentFileLocation(
                         id=media_row[0],
                         version=media_row[1],
                         access_hash=media_row[2]
                     ), file=filename)
                 else:
-                    self.client.download_file(types.InputFileLocation(
+                    await self.client.download_file(types.InputFileLocation(
                         local_id=media_row[0],
                         volume_id=media_row[1],
                         secret=media_row[2]
                     ), file=filename)
-                time.sleep(1)
+                await asyncio.sleep(1)
             msg_row = msg_cursor.fetchone()
