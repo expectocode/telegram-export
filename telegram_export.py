@@ -181,7 +181,7 @@ def find_dialog(dialogs, query, top=25, threshold=0.7):
 
 async def list_or_search_dialogs(args, client):
     """List the user's dialogs and/or search them for a query"""
-    dialogs = await client.get_dialogs(limit=None)[::-1]  # Oldest to newest
+    dialogs = (await client.get_dialogs(limit=None))[::-1]  # Oldest to newest
     if args.list_dialogs:
         id_pad, username_pad = find_fmt_dialog_padding(dialogs)
         for dialog in dialogs:
@@ -246,7 +246,7 @@ async def main():
     ).start(config['TelegramAPI']['PhoneNumber'])
 
     if args.list_dialogs or args.search_string:
-        return list_or_search_dialogs(args, client)
+        return await list_or_search_dialogs(args, client)
 
     downloader = Downloader(client, config['Dumper'], dumper)
     cache_file = os.path.join(absolute_session_name + '.tl')
@@ -265,7 +265,9 @@ async def main():
         elif 'Blacklist' in dumper.config:
             # May be blacklist, so save the IDs on who to avoid
             entities = entities_from_str(client, dumper.config['Blacklist'])
-            avoid = set(utils.get_peer_id(x) async for x in entities)
+            avoid = set()
+            async for x in entities:
+                avoid.add(utils.get_peer_id(x))
             # TODO Should this get_dialogs call be cached? How?
             for dialog in await client.get_dialogs(limit=None):
                 if utils.get_peer_id(dialog.entity) not in avoid:
