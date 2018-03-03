@@ -87,6 +87,8 @@ DBFileName = export
 # To format the date of the mesage, you can use the format specifiers
 # described under the following link anywhere you wish:
 # https://docs.python.org/3.5/library/datetime.html#strftime-and-strptime-behavior
+# eg. for the year you would put %Y in the format string and for a literal %
+# you would put %%, though that would be a bit weird.
 #
 # If the filenames are not unique, you may get files overwritten by other files!
 # Some uniqueness tips: Context IDs won't be the same, Message IDs won't be
