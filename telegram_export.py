@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import sys
+from contextlib import suppress
 
 import tqdm
 from telethon import TelegramClient, utils
@@ -274,7 +275,7 @@ async def main():
             for entity in await client.get_dialogs(limit=None):
                 await downloader.start(entity)
 
-    except KeyboardInterrupt:
+    except asyncio.CancelledError:
         pass
     finally:
         logging.getLogger(__name__).info("Closing exporter")
@@ -284,5 +285,16 @@ async def main():
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    ret = loop.run_until_complete(main())
-    exit(ret or 0)
+    try:
+        ret = loop.run_until_complete(main())
+        exit(ret or 0)
+    except KeyboardInterrupt:
+        for task in asyncio.Task.all_tasks():
+            task.cancel()
+            # Now we should await task to execute it's cancellation.
+            # Cancelled task raises asyncio.CancelledError that we can suppress:
+            with suppress(asyncio.CancelledError):
+                loop.run_until_complete(task)
+        loop.stop()
+        loop.close()
+        exit(1)
