@@ -72,3 +72,12 @@ Limitations
   for multiple versions of a message in the db. However, this shouldn't be
   much of an issue, since most edits or deletions are legit and often to
   fix typos.
+
+What does it do? Is it a bot?
+=============================
+
+It uses the Telegram API (what Telegram apps use), so it has access to
+everything a Telegram app can do. This is why you need an API ID and API hash
+to use it, and why one from Telegram Desktop will work. Since normal clients
+need to download messages, media, users etc to display them in-app,
+telegram-export can do the same, and save them into a nice database.
