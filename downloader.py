@@ -274,7 +274,7 @@ class Downloader:
 
         elif isinstance(media, (types.Photo,
                                 types.UserProfilePhoto, types.ChatPhoto)):
-            if 'chatphoto' not in self.types:
+            if not self.max_size or 'chatphoto' not in self.types:
                 return
 
             if isinstance(media, types.Photo):
