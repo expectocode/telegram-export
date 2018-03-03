@@ -206,22 +206,24 @@ class Downloader:
         """
         for entity in entities:
             eid = utils.get_peer_id(entity)
+            if isinstance(entity, types.User):
+                if entity.deleted or entity.min:
+                    continue  # Empty name would cause IntegrityError
+            elif isinstance(entity, types.Channel):
+                if entity.left:
+                    continue  # Getting full info triggers ChannelPrivateError
+            elif not isinstance(entity, types.Chat):
+                # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
+                continue
+
             if eid in self._checked_entity_ids:
                 continue
             else:
                 self._checked_entity_ids.add(eid)
-            if isinstance(entity, types.User):
-                if not entity.deleted and not entity.min:
-                    # Empty name would cause IntegrityError
+                if isinstance(entity, types.User):
                     self._user_queue.put_nowait(entity)
-            elif isinstance(entity, types.Chat):
-                # Enqueue these under chats even though it doesn't need full
-                self._chat_queue.put_nowait(entity)
-            elif isinstance(entity, types.Channel):
-                if not entity.left:
-                    # Getting full info triggers ChannelPrivateError
+                else:
                     self._chat_queue.put_nowait(entity)
-            # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
 
     def enqueue_media(self, media, target, from_entity, known_id=None):
         """
