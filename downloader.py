@@ -190,9 +190,9 @@ class Downloader:
         while self._running:
             start = time.time()
             chat = await queue.get()
-            if isinstance(chat, types.Chat):
+            if isinstance(chat, (types.Chat, types.PeerChat)):
                 self._dump_full_entity(chat)
-            else:  # isinstance(chat, types.Channel):
+            else:  # isinstance(chat, (types.Channel, types.PeerChannel)):
                 self._dump_full_entity(await self.client(
                     functions.channels.GetFullChannelRequest(chat)
                 ))
@@ -213,7 +213,10 @@ class Downloader:
             elif isinstance(entity, types.Channel):
                 if entity.left:
                     continue  # Getting full info triggers ChannelPrivateError
-            elif not isinstance(entity, types.Chat):
+            elif not isinstance(entity, (types.Chat,
+                                         types.InputPeerUser,
+                                         types.InputPeerChat,
+                                         types.InputPeerChannel)):
                 # Drop UserEmpty, ChatEmpty, ChatForbidden and ChannelForbidden
                 continue
 
@@ -221,7 +224,7 @@ class Downloader:
                 continue
             else:
                 self._checked_entity_ids.add(eid)
-                if isinstance(entity, types.User):
+                if isinstance(entity, (types.User, types.InputPeerUser)):
                     self._user_queue.put_nowait(entity)
                 else:
                     self._chat_queue.put_nowait(entity)
@@ -327,6 +330,7 @@ class Downloader:
         asyncio.ensure_future(self._user_consumer(self._user_queue, entbar))
         asyncio.ensure_future(self._chat_consumer(self._chat_queue, entbar))
         asyncio.ensure_future(self._media_consumer(self._media_queue, medbar))
+        self.enqueue_entities(self.dumper.iter_resume_entities(target_id))
         try:
             self.enqueue_entities((target,))
             entbar.total = len(self._checked_entity_ids)
@@ -486,6 +490,16 @@ class Downloader:
             entbar.close()
             medbar.n = medbar.total
             medbar.close()
+            # If the download was interrupted and there are users left in the
+            # queue we want to save them into the database for the next run.
+            entities = []
+            while not self._user_queue.empty():
+                entities.append(self._user_queue.get_nowait())
+            while not self._chat_queue.empty():
+                entities.append(self._chat_queue.get_nowait())
+            if entities:
+                self.dumper.save_resume_entities(target_id, entities)
+                self.dumper.commit()
 
     async def download_past_media(self, dumper, target_id):
         """

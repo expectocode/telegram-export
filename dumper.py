@@ -12,7 +12,7 @@ import os.path
 
 import utils
 from telethon.tl import types
-from telethon.utils import get_peer_id
+from telethon.utils import get_peer_id, resolve_id, get_input_peer
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +207,12 @@ class Dumper:
                       "Date INT NOT NULL,"
                       "StopAt INT NOT NULL,"
                       "PRIMARY KEY (ContextID)) WITHOUT ROWID")
+
+            c.execute("CREATE TABLE ResumeEntity("
+                      "ContextID INT NOT NULL,"
+                      "ID INT NOT NULL,"
+                      "AccessHash INT,"
+                      "PRIMARY KEY (ContextID, ID)) WITHOUT ROWID")
             self.conn.commit()
 
     def _upgrade_database(self, old):
@@ -624,6 +630,45 @@ class Dumper:
             msg_date = int(msg_date.timestamp())
 
         return self._insert('Resume', (context_id, msg, msg_date, stop_at))
+
+    def iter_resume_entities(self, context_id):
+        """
+        Returns an iterator over the entities that need resuming for the
+        given context_id. Note that the entities are *removed* once the
+        iterator is consumed completely.
+        """
+        c = self.conn.execute("SELECT ID, AccessHash FROM ResumeEntity "
+                              "WHERE ContextID = ?", (context_id,))
+        row = c.fetchone()
+        while row:
+            eid, kind = resolve_id(row[0])
+            if kind == types.PeerUser:
+                yield types.InputPeerUser(row[0], row[1])
+            elif kind == types.PeerChat:
+                yield types.InputPeerChat(row[0])
+            elif kind == types.PeerChannel:
+                yield types.InputPeerChannel(row[0], row[1])
+            row = c.fetchone()
+
+        c.execute("DELETE FROM ResumeEntity WHERE ContextID = ?",
+                  (context_id,))
+
+    def save_resume_entities(self, context_id, entities):
+        """
+        Saves the given entities for resuming at a later point.
+        """
+        rows = []
+        for ent in entities:
+            ent = get_input_peer(ent)
+            if isinstance(ent, types.InputPeerUser):
+                rows.append((context_id, ent.user_id, ent.access_hash))
+            elif isinstance(ent, types.InputPeerChat):
+                rows.append((context_id, ent.chat_id, None))
+            elif isinstance(ent, types.InputPeerChannel):
+                rows.append((context_id, ent.channel_id, ent.access_hash))
+        c = self.conn.cursor()
+        c.executemany("INSERT OR REPLACE INTO ResumeEntity "
+                      "VALUES (?,?,?)", rows)
 
     def _insert_if_valid_date(self, into, values, date_column, where):
         """
