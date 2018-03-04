@@ -113,16 +113,19 @@ def parse_args():
     parser.add_argument('--config-file', default=None,
                         help='specify a config file. Default config.ini')
 
-    # TODO Selectable context ID? They're hard to remember though.
-    #      Would it be a different argument? Format but comma separated?
+    parser.add_argument('--contexts', type=str,
+                        help='list of contexts to act on eg --contexts=12345, '
+                              '@username (see example config whitelist for '
+                              'full rules). Overrides whitelist/blacklist.')
+
     parser.add_argument('--format', type=str,
                         help='formats the dumped messages with the specified '
                              'formatter and exits. Valid options are: {}'
                         .format(', '.join(NAME_TO_FORMATTER)))
 
-    parser.add_argument('--download-past-media', type=int,
-                        help='downloads past media (i.e. dumped files but'
-                             'not downloaded) from the given context ID')
+    parser.add_argument('--download-past-media', action='store_true',
+                        help='download past media instead of dumping new data '
+                             '(files that were seen before but not downloaded).')
     return parser.parse_args()
 
 
@@ -218,6 +221,29 @@ async def entities_from_str(client, string):
         else:
             yield await client.get_input_entity(who)
 
+async def get_entities_iter(mode, in_list, client):
+    """
+    Get a generator of entities to act on given a mode ('blacklist',
+    'whitelist') and an input from that mode. If whitelist, generator will be
+    asynchronous.
+    """
+    # TODO change None to empty blacklist?
+    mode = mode.lower()
+    if mode == 'whitelist':
+        assert client is not None
+        async for ent in entities_from_str(client, in_list):
+            yield ent
+    if mode == 'blacklist':
+        assert client is not None
+        blacklist = entities_from_str(client, in_list)
+        avoid = set()
+        async for x in blacklist:
+            avoid.add(utils.get_peer_id(x))
+        # TODO Should this get_dialogs call be cached? How?
+        for dialog in await client.get_dialogs(limit=None):
+            if utils.get_peer_id(dialog.entity) not in avoid:
+                yield dialog.entity
+        return
 
 async def main():
     """The main telegram-export program.
@@ -233,7 +259,8 @@ async def main():
             return 1
 
         formatter = NAME_TO_FORMATTER[args.format](dumper.conn)
-        for cid in formatter.iter_context_ids():
+        fmt_contexts = args.contexts or formatter.iter_context_ids()
+        for cid in fmt_contexts:
             formatter.format(cid, config['Dumper']['OutputDirectory'])
         return
 
@@ -253,31 +280,35 @@ async def main():
     downloader = Downloader(client, config['Dumper'], dumper)
     cache_file = os.path.join(absolute_session_name + '.tl')
     try:
-        if args.download_past_media:
-            await downloader.download_past_media(dumper, args.download_past_media)
-            return
-
         dumper.check_self_user((await client.get_me(input_peer=True)).user_id)
+        if args.contexts:
+            dumper.config['Whitelist'] = args.contexts
+
         if 'Whitelist' in dumper.config:
             # Only whitelist, don't even get the dialogs
-            entities = entities_from_str(client, dumper.config['Whitelist'])
-            async for who in entities:
-                await downloader.start(who)
-
+            async for entity in get_entities_iter('whitelist',
+                                                  dumper.config['Whitelist'],
+                                                  client):
+                if args.download_past_media:
+                    await downloader.download_past_media(dumper, entity)
+                else:
+                    await downloader.start(entity)
         elif 'Blacklist' in dumper.config:
             # May be blacklist, so save the IDs on who to avoid
-            entities = entities_from_str(client, dumper.config['Blacklist'])
-            avoid = set()
-            async for x in entities:
-                avoid.add(utils.get_peer_id(x))
-            # TODO Should this get_dialogs call be cached? How?
-            for dialog in await client.get_dialogs(limit=None):
-                if utils.get_peer_id(dialog.entity) not in avoid:
-                    await downloader.start(dialog.entity)
+            async for entity in get_entities_iter('blacklist',
+                                                  dumper.config['Blacklist'],
+                                                  client):
+                if args.download_past_media:
+                    await downloader.download_past_media(dumper, entity)
+                else:
+                    await downloader.start(entity)
         else:
             # Neither blacklist nor whitelist - get all
             for entity in await client.get_dialogs(limit=None):
-                await downloader.start(entity)
+                if args.download_past_media:
+                    await downloader.download_past_media(dumper, entity)
+                else:
+                    await downloader.start(entity)
 
     except asyncio.CancelledError:
         pass
