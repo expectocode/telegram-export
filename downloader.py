@@ -386,7 +386,7 @@ class Downloader:
             chunks_left = self.dumper.max_chunks
             # This loop is for get history, although the admin log
             # is interlaced as well to dump both at the same time.
-            while True:
+            while self._running:
                 start = time.time()
                 history = await self.client(req)
                 # Queue found entities so they can be dumped later
@@ -463,7 +463,7 @@ class Downloader:
             self.dumper.commit()
 
             # This loop is specific to the admin log (to finish up)
-            while log_req:
+            while log_req and self._running:
                 start = time.time()
                 result = await self.client(log_req)
                 self.enqueue_entities(itertools.chain(

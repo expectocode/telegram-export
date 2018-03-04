@@ -339,6 +339,8 @@ if __name__ == '__main__':
         task.cancel()
         # Now we should await task to execute it's cancellation.
         # Cancelled task raises asyncio.CancelledError that we can suppress:
+        if hasattr(task._coro, '__name__') and task._coro.__name__ == 'main':
+            continue
         with suppress(asyncio.CancelledError):
             loop.run_until_complete(task)
     loop.stop()
