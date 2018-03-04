@@ -210,6 +210,8 @@ async def list_or_search_dialogs(args, client):
 async def entities_from_str(client, string):
     """Helper function to load entities from the config file"""
     for who in string.split(','):
+        if not who.strip():
+            continue
         who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
         if re.match(r'[^+]-?\d+', who):
             yield await client.get_input_entity(int(who))
@@ -288,15 +290,15 @@ async def main():
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     try:
-        ret = loop.run_until_complete(main())
-        exit(ret or 0)
+        ret = loop.run_until_complete(main()) or 0
     except KeyboardInterrupt:
-        for task in asyncio.Task.all_tasks():
-            task.cancel()
-            # Now we should await task to execute it's cancellation.
-            # Cancelled task raises asyncio.CancelledError that we can suppress:
-            with suppress(asyncio.CancelledError):
-                loop.run_until_complete(task)
-        loop.stop()
-        loop.close()
-        exit(1)
+        ret = 1
+    for task in asyncio.Task.all_tasks():
+        task.cancel()
+        # Now we should await task to execute it's cancellation.
+        # Cancelled task raises asyncio.CancelledError that we can suppress:
+        with suppress(asyncio.CancelledError):
+            loop.run_until_complete(task)
+    loop.stop()
+    loop.close()
+    exit(ret)
