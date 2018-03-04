@@ -298,11 +298,11 @@ async def main():
                     await downloader.start(entity)
         else:
             # Neither blacklist nor whitelist - get all
-            for entity in await client.get_dialogs(limit=None):
+            for dialog in await client.get_dialogs(limit=None):
                 if args.download_past_media:
-                    await downloader.download_past_media(dumper, entity)
+                    await downloader.download_past_media(dumper, dialog.entity)
                 else:
-                    await downloader.start(entity)
+                    await downloader.start(dialog.entity)
 
     except asyncio.CancelledError:
         pass
