@@ -7,7 +7,6 @@ import difflib
 import logging
 import os
 import re
-import sys
 from contextlib import suppress
 
 import tqdm
@@ -51,11 +50,12 @@ def load_config(filename):
         'MaxSize': '1MB',
         'LogLevel': 'INFO',
         'DBFileName': 'export',
-        'MediaFilenameFmt': 'usermedia/{name}{context_id}/{type}{filename}-{id}{ext}',
         'InvalidationTime': '7200',
         'ChunkSize': '100',
         'MaxChunks': '0',
-        'LibraryLogLevel': 'WARNING'
+        'LibraryLogLevel': 'WARNING',
+        'MediaFilenameFmt':
+            'usermedia/{name}{context_id}/{type}{filename}-{id}{ext}'
     }
 
     # Load from file
@@ -65,8 +65,9 @@ def load_config(filename):
     # Check logging level (let it raise on invalid)
     level = config['Dumper'].get('LogLevel').upper()
     handler = TqdmLoggingHandler(level)
-    handler.setFormatter(
-        logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    ))
     handler.setLevel(getattr(logging, level))
     logger.addHandler(handler)
     logger.setLevel(getattr(logging, level))
@@ -115,22 +116,24 @@ def parse_args():
 
     parser.add_argument('--contexts', type=str,
                         help='list of contexts to act on eg --contexts=12345, '
-                              '@username (see example config whitelist for '
-                              'full rules). Overrides whitelist/blacklist.')
+                             '@username (see example config whitelist for '
+                             'full rules). Overrides whitelist/blacklist.')
 
     parser.add_argument('--format', type=str,
                         help='formats the dumped messages with the specified '
                              'formatter and exits.', choices=NAME_TO_FORMATTER)
 
     parser.add_argument('--download-past-media', action='store_true',
-                        help='download past media instead of dumping new data '
-                             '(files that were seen before but not downloaded).')
+                        help='download past media instead of dumping '
+                             'new data (files that were seen before '
+                             'but not downloaded).')
     return parser.parse_args()
 
 
 def fmt_dialog(dialog, id_pad=0, username_pad=0):
     """
-    Space-fill a row with given padding values to ensure alignment when printing dialogs
+    Space-fill a row with given padding values
+    to ensure alignment when printing dialogs.
     """
     username = getattr(dialog.entity, 'username', None)
     username = '@' + username if username else NO_USERNAME
@@ -141,7 +144,10 @@ def fmt_dialog(dialog, id_pad=0, username_pad=0):
 
 
 def find_fmt_dialog_padding(dialogs):
-    """Find the correct amount of space padding to give dialogs when printing them"""
+    """
+    Find the correct amount of space padding
+    to give dialogs when printing them.
+    """
     no_username = NO_USERNAME[:-1]  # Account for the added '@' if username
     return (
         max(len(str(utils.get_peer_id(dialog.entity))) for dialog in dialogs),
@@ -151,7 +157,10 @@ def find_fmt_dialog_padding(dialogs):
 
 
 def find_dialog(dialogs, query, top=25, threshold=0.7):
-    """Iterate through dialogs and return, sorted, the best matches for a given query"""
+    """
+    Iterate through dialogs and return, sorted,
+    the best matches for a given query.
+    """
     seq = difflib.SequenceMatcher(b=query, autojunk=False)
     scores = []
     for index, dialog in enumerate(dialogs):
@@ -220,11 +229,12 @@ async def entities_from_str(client, string):
         else:
             yield await client.get_input_entity(who)
 
+
 async def get_entities_iter(mode, in_list, client):
     """
     Get a generator of entities to act on given a mode ('blacklist',
-    'whitelist') and an input from that mode. If whitelist, generator will be
-    asynchronous.
+    'whitelist') and an input from that mode. If whitelist, generator
+    will be asynchronous.
     """
     # TODO change None to empty blacklist?
     mode = mode.lower()
@@ -244,9 +254,12 @@ async def get_entities_iter(mode, in_list, client):
                 yield dialog.entity
         return
 
+
 async def main():
-    """The main telegram-export program.
-       Goes through the configured dialogs and dumps them into the database"""
+    """
+    The main telegram-export program. Goes through the
+    configured dialogs and dumps them into the database.
+    """
     args = parse_args()
     config = load_config(args.config_file)
     dumper = Dumper(config['Dumper'])
@@ -272,7 +285,6 @@ async def main():
         return await list_or_search_dialogs(args, client)
 
     downloader = Downloader(client, config['Dumper'], dumper)
-    cache_file = os.path.join(absolute_session_name + '.tl')
     try:
         dumper.check_self_user((await client.get_me(input_peer=True)).user_id)
         if args.contexts:
@@ -305,6 +317,11 @@ async def main():
                     await downloader.start(dialog.entity)
 
     except asyncio.CancelledError:
+        # This should be triggered on KeyboardInterrupt's to prevent ugly
+        # traceback from reaching the user. Important code that always
+        # must run (such as the Downloader saving resume info) should go
+        # in their respective `finally:` blocks to ensure it gets called.
+        # TODO: Check that this is actually the case.
         pass
     finally:
         logging.getLogger(__name__).info("Closing exporter")

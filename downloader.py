@@ -318,27 +318,25 @@ class Downloader:
 
         found = self.dumper.get_message_count(target_id)
         chat_name = utils.get_display_name(target)
-        pbar = tqdm.tqdm(unit=' messages',
-                         desc=chat_name, initial=found, bar_format=BAR_FORMAT)
-        entbar = tqdm.tqdm(unit=' entities', bar_format=BAR_FORMAT,
-                           desc='entities', postfix={'chat': chat_name})
-        medbar = tqdm.tqdm(unit='B', unit_divisor=1000, unit_scale=True,
-                           bar_format=BAR_FORMAT, desc='media',
-                           postfix={'chat': chat_name})
+        msg_bar = tqdm.tqdm(unit=' messages', desc=chat_name,
+                            initial=found, bar_format=BAR_FORMAT)
+        ent_bar = tqdm.tqdm(unit=' entities', desc='entities',
+                            bar_format=BAR_FORMAT, postfix={'chat': chat_name})
+        med_bar = tqdm.tqdm(unit='B', desc='media', unit_divisor=1000,
+                            unit_scale=True, bar_format=BAR_FORMAT,
+                            total=0, postfix={'chat': chat_name})
         # Divisor is 1000 not 1024 since tqdm puts a K not a Ki
 
-        medbar.total = 0
-
-        asyncio.ensure_future(self._user_consumer(self._user_queue, entbar))
-        asyncio.ensure_future(self._chat_consumer(self._chat_queue, entbar))
-        asyncio.ensure_future(self._media_consumer(self._media_queue, medbar))
+        asyncio.ensure_future(self._user_consumer(self._user_queue, ent_bar))
+        asyncio.ensure_future(self._chat_consumer(self._chat_queue, ent_bar))
+        asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar))
         self.enqueue_entities(self.dumper.iter_resume_entities(target_id))
         for media in self.dumper.iter_resume_media(target_id):
             self._media_queue.put_nowait(media)
 
         try:
             self.enqueue_entities((target,))
-            entbar.total = len(self._checked_entity_ids)
+            ent_bar.total = len(self._checked_entity_ids)
             req = functions.messages.GetHistoryRequest(
                 peer=target_in,
                 offset_id=0,
@@ -395,7 +393,7 @@ class Downloader:
                 self.enqueue_entities(itertools.chain(
                     history.users, history.chats
                 ))
-                entbar.total = len(self._checked_entity_ids)
+                ent_bar.total = len(self._checked_entity_ids)
 
                 # Dump the messages from this batch
                 entities = {utils.get_peer_id(x): x for x in itertools.chain(
@@ -405,11 +403,11 @@ class Downloader:
 
                 # Determine whether to continue dumping or we're done
                 count = len(history.messages)
-                pbar.total = getattr(history, 'count', count)
-                pbar.update(count)
+                msg_bar.total = getattr(history, 'count', count)
+                msg_bar.update(count)
                 if history.messages:
                     # We may reinsert some we already have (so found > total)
-                    found = min(found + len(history.messages), pbar.total)
+                    found = min(found + len(history.messages), msg_bar.total)
                     req.offset_id = min(m.id for m in history.messages)
                     req.offset_date = min(m.date for m in history.messages)
 
@@ -460,8 +458,8 @@ class Downloader:
                 await asyncio.sleep(max(1 - (time.time() - start), 0))
 
             # Message loop complete, wait for the queues to empty
-            pbar.n = pbar.total
-            pbar.close()
+            msg_bar.n = msg_bar.total
+            msg_bar.close()
             self.dumper.commit()
 
             # This loop is specific to the admin log (to finish up)
@@ -491,10 +489,10 @@ class Downloader:
             await self._media_queue.join()
         finally:
             self._running = False
-            entbar.n = entbar.total
-            entbar.close()
-            medbar.n = medbar.total
-            medbar.close()
+            ent_bar.n = ent_bar.total
+            ent_bar.close()
+            med_bar.n = med_bar.total
+            med_bar.close()
             # If the download was interrupted and there are users left in the
             # queue we want to save them into the database for the next run.
             entities = []
@@ -589,16 +587,18 @@ class Downloader:
                 __log__.info('Downloading to %s', filename)
                 os.makedirs(os.path.dirname(filename), exist_ok=True)
                 if media_type == 'document':
-                    await self.client.download_file(types.InputDocumentFileLocation(
+                    location = types.InputDocumentFileLocation(
                         id=media_row[0],
                         version=media_row[1],
                         access_hash=media_row[2]
-                    ), file=filename)
+                    )
                 else:
-                    await self.client.download_file(types.InputFileLocation(
+                    location = types.InputFileLocation(
                         local_id=media_row[0],
                         volume_id=media_row[1],
                         secret=media_row[2]
-                    ), file=filename)
+                    )
+
+                await self.client.download_file(location, filename=filename)
                 await asyncio.sleep(1)
             msg_row = msg_cursor.fetchone()

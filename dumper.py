@@ -50,8 +50,9 @@ class Dumper:
     """Class to interface with the database for exports"""
 
     def __init__(self, config):
-        """Initialise the dumper.
-        `config` should be a dict-like object from the config file's Dumper section"
+        """
+        Initialise the dumper. `config` should be a dict-like
+        object from the config file's Dumper section".
         """
         self.config = config
         if 'DBFileName' in self.config:
@@ -252,14 +253,18 @@ class Dumper:
             self.commit()
 
     def dump_message(self, message, context_id, forward_id, media_id):
-        """Dump a Message into the Message table
-        The caller is responsible for ensuring to_id is a unique and correct contextID
+        """
+        Dump a Message into the Message table.
+
         Params:
-        - Message to dump,
-        - ID of the chat dumping,
-        - ID of Forward in the DB (or None),
-        - ID of message Media in the DB (or None)
-        Returns: -"""
+            Message to dump,
+            ID of the chat dumping,
+            ID of Forward in the DB (or None),
+            ID of message Media in the DB (or None)
+
+        Returns:
+            Inserted row ID.
+        """
         if not message.message and message.media:
             message.message = getattr(message.media, 'caption', '')
 
@@ -276,7 +281,7 @@ class Dumper:
                              media_id,
                              utils.encode_msg_entities(message.entities),
                              None)  # No MessageAction
-                           )
+                            )
 
     def dump_message_service(self, message, context_id, media_id):
         """Similar to self.dump_message, but for MessageAction's."""
@@ -301,7 +306,7 @@ class Dumper:
                              media_id,  # Might have e.g. a new chat Photo
                              None,  # No entities
                              name)
-                           )
+                            )
 
     def dump_admin_log_event(self, event, context_id, media_id1, media_id2):
         """Similar to self.dump_message_service but for channel actions."""
@@ -322,7 +327,7 @@ class Dumper:
                              media_id2,
                              name,
                              extra)
-                           )
+                            )
 
     def dump_user(self, user_full, photo_id, timestamp=None):
         """Dump a UserFull into the User table
@@ -343,8 +348,9 @@ class Dumper:
                                    where=('ID', user_full.user.id))
 
     def dump_channel(self, channel_full, channel, photo_id, timestamp=None):
-        """Dump a Channel into the Channel table
-        Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
+        """Dump a Channel into the Channel table.
+        Params: ChannelFull, Channel to dump, MediaID
+                of the profile photo in the DB
         Returns -"""
         # Need to get the full object too for 'about' info
         values = (get_peer_id(channel),
@@ -357,14 +363,16 @@ class Dumper:
         self._insert_if_valid_date('Channel', values, date_column=1,
                                    where=('ID', get_peer_id(channel)))
 
-    def dump_supergroup(self, supergroup_full, supergroup, photo_id, timestamp=None):
+    def dump_supergroup(self, supergroup_full, supergroup, photo_id,
+                        timestamp=None):
         """Dump a Supergroup into the Supergroup table
-        Params: ChannelFull, Channel to dump, MediaID of the profile photo in the DB
+        Params: ChannelFull, Channel to dump, MediaID
+                of the profile photo in the DB.
         Returns -"""
         # Need to get the full object too for 'about' info
         values = (get_peer_id(supergroup),
                   timestamp or round(time.time()),
-                  supergroup_full.about if hasattr(supergroup_full, 'about') else '',
+                  getattr(supergroup_full, 'about', None) or '',
                   supergroup.title,
                   supergroup.username,
                   photo_id,
@@ -582,8 +590,9 @@ class Dumper:
             ))
 
     def dump_forward(self, forward):
-        """Dump a message forward relationship into the Forward table
-        The caller is responsible for ensuring from_id is a unique and correct ID
+        """
+        Dump a message forward relationship into the Forward table.
+
         Params: MessageFwdHeader Telethon object
         Returns: ID of inserted row"""
         if not forward:
@@ -736,24 +745,30 @@ class Dumper:
         c.executemany("INSERT OR REPLACE INTO ResumeMedia "
                       "VALUES (?,?,?,?,?,?,?)", rows)
 
-
     def _insert_if_valid_date(self, into, values, date_column, where):
         """
         Helper method to self._insert(into, values) after checking that the
         given values are different than the latest dump or that the delta
         between the current date and the existing column date_column is
         bigger than the invalidation time. `where` is used to get the last
-        dumped item to check for invalidation time. eg. ("ID", 4) -> WHERE ID = ?, 4
+        dumped item to check for invalidation time.
+
+        As an example, ("ID", 4) -> WHERE ID = ?, 4
         """
-        last = self.conn.execute('SELECT * FROM {} WHERE {} = ? ORDER BY DateUpdated DESC'
-                                 .format(into, where[0]),
-                                 (where[1],)).fetchone()
+        last = self.conn.execute(
+            'SELECT * FROM {} WHERE {} = ? ORDER BY DateUpdated DESC'
+            .format(into, where[0]), (where[1],)
+        ).fetchone()
+
         if last:
             delta = values[date_column] - last[date_column]
 
-            # Note sqlite stores True as 1 and False as 0 but this is probably ok
+            # Note sqlite stores True as 1 and False
+            # as 0 but this is probably ok.
             if len(values) != len(last):
-                raise TypeError("values has a different number of columns to table")
+                raise TypeError(
+                    "values has a different number of columns to table"
+                )
             rows_same = True
             for i, val in enumerate(values):
                 if i != date_column and val != last[i]:
