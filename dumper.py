@@ -534,10 +534,17 @@ class Dumper:
                 if small != large:
                     row['thumbnail_id'] = self.dump_media(small, 'thumbnail')
 
-        if isinstance(media, (types.PhotoSize, types.PhotoCachedSize)):
+        if isinstance(media, (types.PhotoSize,
+                              types.PhotoCachedSize,
+                              types.PhotoSizeEmpty)):
             row['type'] = 'photo'
             row['mime_type'] = 'image/jpeg'
-            row['size'] = media.size
+            if isinstance(media, types.PhotoSize):
+                row['size'] = media.size
+            elif isinstance(media, types.PhotoCachedSize):
+                row['size'] = len(media.bytes)
+            elif isinstance(media, types.PhotoSizeEmpty):
+                row['size'] = 0
             if isinstance(media.location, types.FileLocation):
                 media = media.location
 
