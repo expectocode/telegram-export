@@ -11,7 +11,7 @@ import sys
 from contextlib import suppress
 
 import tqdm
-from telethon import TelegramClient, utils
+from telethon_aio import TelegramClient, utils
 
 from downloader import Downloader
 from dumper import Dumper

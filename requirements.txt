@@ -1,2 +1,2 @@
-telethon
+telethon-aio
 tqdm

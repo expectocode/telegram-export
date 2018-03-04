@@ -1,5 +1,5 @@
 """Utility functions for telegram-export which aren't specific to one purpose"""
-from telethon.tl import types
+from telethon_aio.tl import types
 
 
 ENTITY_TO_TEXT = {

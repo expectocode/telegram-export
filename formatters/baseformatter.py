@@ -10,8 +10,8 @@ from abc import abstractmethod
 from io import TextIOWrapper
 
 import os
-from telethon import utils
-from telethon.tl import types
+from telethon_aio import utils
+from telethon_aio.tl import types
 
 Message = namedtuple('Message', (
     'id', 'context_id', 'date', 'from_id', 'text', 'reply_message_id',

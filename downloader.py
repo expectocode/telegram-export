@@ -9,9 +9,9 @@ import time
 from collections import defaultdict
 
 import tqdm
-from telethon import utils
-from telethon.errors import ChatAdminRequiredError
-from telethon.tl import types, functions
+from telethon_aio import utils
+from telethon_aio.errors import ChatAdminRequiredError
+from telethon_aio.tl import types, functions
 
 import utils as export_utils
 
