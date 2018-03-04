@@ -120,8 +120,7 @@ def parse_args():
 
     parser.add_argument('--format', type=str,
                         help='formats the dumped messages with the specified '
-                             'formatter and exits. Valid options are: {}'
-                        .format(', '.join(NAME_TO_FORMATTER)))
+                             'formatter and exits.', choices=NAME_TO_FORMATTER)
 
     parser.add_argument('--download-past-media', action='store_true',
                         help='download past media instead of dumping new data '
@@ -253,11 +252,6 @@ async def main():
     dumper = Dumper(config['Dumper'])
 
     if args.format:
-        if args.format not in NAME_TO_FORMATTER:
-            print('Format name "{}" not available"'.format(args.format),
-                  file=sys.stderr)
-            return 1
-
         formatter = NAME_TO_FORMATTER[args.format](dumper.conn)
         fmt_contexts = args.contexts or formatter.iter_context_ids()
         for cid in fmt_contexts:
