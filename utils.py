@@ -113,7 +113,7 @@ def get_file_location(media):
             location = types.InputDocumentFileLocation(
                 id=media.document.id,
                 access_hash=media.document.access_hash,
-                version=media.document.access_hash
+                version=media.document.version
             )
     elif isinstance(media, (types.UserProfilePhoto, types.ChatPhoto)):
         if isinstance(media.photo_big, types.FileLocation):
