@@ -14,9 +14,7 @@ Installation
 This project depends on [Telethon](https://github.com/LonamiWebs/Telethon/tree/asyncio)'s
 asyncio branch and [tqdm](https://github.com/tqdm/tqdm). The easiest way to
 install these is `pip3 install --user --upgrade -r requirements.txt` or `pip
-install --upgrade --user tqdm telethon-aio`. However, if you already have the
-synchronous version of Telethon installed, you may want to use a
-[virtualenv](https://virtualenv.pypa.io/en/stable/userguide/#usage) instead.
+install --upgrade --user tqdm telethon-aio`.
 
 With these installed, you can simply `git clone` this repository and go onto
 'Usage'.
