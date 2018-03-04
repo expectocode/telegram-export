@@ -22,7 +22,7 @@ VALID_TYPES = {
     'photo', 'document', 'video', 'audio', 'sticker', 'voice', 'chatphoto'
 }
 BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} " \
-             "[{elapsed}/{remaining}, {rate_noinv_fmt}{postfix}]"
+             "[{elapsed}<{remaining}, {rate_noinv_fmt}{postfix}]"
 
 
 QUEUE_TIMEOUT = 5
@@ -317,13 +317,15 @@ class Downloader:
         target_id = utils.get_peer_id(target)
 
         found = self.dumper.get_message_count(target_id)
+        chat_name = utils.get_display_name(target)
         pbar = tqdm.tqdm(unit=' messages',
-                         desc=utils.get_display_name(target),
-                         initial=found, bar_format=BAR_FORMAT)
+                         desc=chat_name, initial=found, bar_format=BAR_FORMAT)
         entbar = tqdm.tqdm(unit=' entities', bar_format=BAR_FORMAT,
-                           postfix={'chat': utils.get_display_name(target)})
-        medbar = tqdm.tqdm(unit='B', unit_divisor=1024, unit_scale=True,
-                           bar_format=BAR_FORMAT, postfix={'media': 'saved'})
+                           desc='entities', postfix={'chat': chat_name})
+        medbar = tqdm.tqdm(unit='B', unit_divisor=1000, unit_scale=True,
+                           bar_format=BAR_FORMAT, desc='media',
+                           postfix={'chat': chat_name})
+        # Divisor is 1000 not 1024 since tqdm puts a K not a Ki
 
         medbar.total = 0
 
