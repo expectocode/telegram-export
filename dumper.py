@@ -527,6 +527,7 @@ class Dumper:
         if isinstance(media, (types.PhotoSize, types.PhotoCachedSize)):
             row['type'] = 'photo'
             row['mime_type'] = 'image/jpeg'
+            row['size'] = media.size
             if isinstance(media.location, types.FileLocation):
                 media = media.location
 
