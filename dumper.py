@@ -577,19 +577,14 @@ class Dumper:
                              forward.channel_post,
                              forward.post_author))
 
-    def get_message_id(self, context_id, which):
-        """Returns MAX or MIN message available for context_id.
-        Used to determine at which point a backup should stop."""
-        if which not in ('MIN', 'MAX'):
-            raise ValueError('Parameter', which, 'must be MIN or MAX.')
-
-        return self.conn.execute(
-            """SELECT * FROM Message WHERE ID = (
-                    SELECT {which}(ID) FROM Message
-                    WHERE ContextID = ?
-                )
-            """.format(which=which), (context_id,)).fetchone()[0]
-        # May raise if nothing was retrieved
+    def get_max_message_id(self, context_id):
+        """
+        Returns the largest saved message ID for the given
+        context_id, or 0 if no messages have been saved.
+        """
+        row = self.conn.execute("SELECT MAX(ID) FROM Message WHERE "
+                                "ContextID = ?", (context_id,)).fetchone()
+        return row[0] if row else 0
 
     def get_message_count(self, context_id):
         """Gets the message count for the given context"""
