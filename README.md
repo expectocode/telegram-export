@@ -8,6 +8,17 @@ A tool to download Telegram data (users, chats, messages, and media) into a
 
 ![Schema image](/schema.png)
 
+Installation
+============
+
+This project depends on [Telethon](https://github.com/LonamiWebs/Telethon/tree/asyncio)'s
+asyncio branch and [tqdm](https://github.com/tqdm/tqdm). Tqdm can be installed
+from PyPI with `pip install --upgrade --user tqdm`, but Telethon's asyncio
+branch is not yet on PyPI, so needs to be installed with
+`pip install --upgrade git+https://github.com/LonamiWebs/Telethon@asyncio`.
+With these installed, you can simply `git clone` this repository and go onto
+'Usage'.
+
 Usage
 =====
 
