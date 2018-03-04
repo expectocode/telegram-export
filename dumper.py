@@ -539,14 +539,15 @@ class Dumper:
                               types.PhotoSizeEmpty)):
             row['type'] = 'photo'
             row['mime_type'] = 'image/jpeg'
-            if isinstance(media, types.PhotoSize):
-                row['size'] = media.size
-            elif isinstance(media, types.PhotoCachedSize):
-                row['size'] = len(media.bytes)
-            elif isinstance(media, types.PhotoSizeEmpty):
+            if isinstance(media, types.PhotoSizeEmpty):
                 row['size'] = 0
-            if isinstance(media.location, types.FileLocation):
-                media = media.location
+            else:
+                if isinstance(media, types.PhotoSize):
+                    row['size'] = media.size
+                elif isinstance(media, types.PhotoCachedSize):
+                    row['size'] = len(media.bytes)
+                if isinstance(media.location, types.FileLocation):
+                    media = media.location
 
         if isinstance(media, (types.UserProfilePhoto, types.ChatPhoto)):
             row['type'] = 'photo'
