@@ -224,7 +224,7 @@ class Downloader:
             name=self._get_name(context_id) or 'unknown',
             sender_name=self._get_name(sender_id) or 'unknown'
         )
-        ext = mimetypes.guess_extension(media_row[4]) or '.bin',
+        ext = mimetypes.guess_extension(media_row[4]) or '.bin'
         if ext == '.jpe':
             ext = '.jpg'  # Nobody uses .jpe for photos
 
