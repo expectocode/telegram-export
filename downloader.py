@@ -73,25 +73,12 @@ class Downloader:
         """
         if isinstance(entity, types.UserFull):
             photo_id = self.dumper.dump_media(entity.profile_photo)
-            if self._check_media(entity.profile_photo):
-                self.enqueue_media(
-                    media_id=photo_id,
-                    context_id=utils.get_peer_id(entity.user),
-                    sender_id=utils.get_peer_id(entity.user),
-                    date=getattr(entity.profile_photo, 'date', None)
-                )
+            self.enqueue_photo(entity.profile_photo, photo_id, entity.user)
             self.dumper.dump_user(entity, photo_id=photo_id)
 
         elif isinstance(entity, types.Chat):
             photo_id = self.dumper.dump_media(entity.photo)
-            if self._check_media(entity.photo):
-                self.enqueue_media(
-                    media_id=photo_id,
-                    context_id=utils.get_peer_id(entity),
-                    sender_id=utils.get_peer_id(entity),
-                    date=getattr(entity.photo, 'date', None)
-                )
-
+            self.enqueue_photo(entity.photo, photo_id, entity)
             self.dumper.dump_chat(entity, photo_id=photo_id)
 
         elif isinstance(entity, types.messages.ChatFull):
@@ -99,14 +86,7 @@ class Downloader:
             chat = next(
                 x for x in entity.chats if x.id == entity.full_chat.id
             )
-            if self._check_media(entity.full_chat.chat_photo):
-                self.enqueue_media(
-                    media_id=photo_id,
-                    context_id=utils.get_peer_id(chat),
-                    sender_id=utils.get_peer_id(chat),
-                    date=getattr(entity.full_chat.chat_photo, 'date', None)
-                )
-
+            self.enqueue_photo(entity.full_chat.chat_photo, photo_id, chat)
             if chat.megagroup:
                 self.dumper.dump_supergroup(entity.full_chat, chat,
                                             photo_id)
@@ -137,11 +117,8 @@ class Downloader:
             elif isinstance(m, types.MessageService):
                 if isinstance(m.action, types.MessageActionChatEditPhoto):
                     media_id = self.dumper.dump_media(m.action.photo)
-                    if media_id and self._check_media(m.action.photo):
-                        self.enqueue_media(
-                            media_id, utils.get_peer_id(target), m.from_id,
-                            m.date
-                        )
+                    self.enqueue_photo(m.action.photo, media_id, target,
+                                       peer_id=m.from_id, date=m.date)
                 else:
                     media_id = None
                 self.dumper.dump_message_service(
@@ -163,20 +140,10 @@ class Downloader:
                           types.ChannelAdminLogEventActionChangePhoto):
                 media_id1 = self.dumper.dump_media(event.action.new_photo)
                 media_id2 = self.dumper.dump_media(event.action.prev_photo)
-                if self._check_media(event.action.new_photo):
-                    self.enqueue_media(
-                        media_id=media_id1,
-                        context_id=utils.get_peer_id(target),
-                        sender_id=event.user_id,
-                        date=event.date
-                    )
-                if self._check_media(event.action.prev_photo):
-                    self.enqueue_media(
-                        media_id=media_id2,
-                        context_id=utils.get_peer_id(target),
-                        sender_id=event.user_id,
-                        date=event.date
-                    )
+                self.enqueue_photo(event.action.new_photo, media_id1, target,
+                                   peer_id=event.user_id, date=event.date)
+                self.enqueue_photo(event.action.prev_photo, media_id2, target,
+                                   peer_id=event.user_id, date=event.date)
             else:
                 media_id1 = None
                 media_id2 = None
@@ -346,9 +313,7 @@ class Downloader:
                 else:
                     self._chat_queue.put_nowait(entity)
 
-    # TODO Reuse more code when calling this method...
-    #
-    # TODO Using this everywhere has another issue!
+    # TODO Using this everywhere has an issue!
     # We might not have dumped the context_id/sender_id entities,
     # but we rely on their name... Any clean way to get around this? :/
     def enqueue_media(self, media_id, context_id, sender_id, date):
@@ -361,6 +326,18 @@ class Downloader:
         if not date:
             date = datetime.datetime.now()
         self._media_queue.put_nowait((media_id, context_id, sender_id, date))
+
+    def enqueue_photo(self, photo, photo_id, context,
+                      peer_id=None, date=None):
+        if not photo_id:
+            return
+        if not isinstance(context, int):
+            context = utils.get_peer_id(context)
+        if peer_id is None:
+            peer_id = context
+        if date is None:
+            date = getattr(photo, 'date', None) or datetime.datetime.now()
+        self.enqueue_media(photo_id, context, peer_id, date)
 
     async def start(self, target_id):
         """
