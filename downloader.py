@@ -147,6 +147,82 @@ class Downloader:
             )
         return min(e.id for e in events)
 
+    def _get_name(self, peer_id):
+        c = self.dumper.conn.cursor()
+        _, kind = utils.resolve_id(peer_id)
+        if kind == types.PeerUser:
+            row = c.execute('SELECT FirstName, LastName FROM User '
+                            'WHERE ID = ?', (peer_id,)).fetchone()
+            if row:
+                return '{} {}'.format(row[0] or '',
+                                      row[1] or '').strip()
+        elif kind == types.PeerChat:
+            row = c.execute('SELECT Title FROM Chat '
+                            'WHERE ID ?', (peer_id,)).fetchone()
+            if row:
+                return row[0]
+        elif kind == types.PeerChannel:
+            row = c.execute('SELECT Title FROM Channel '
+                            'WHERE ID ?', (peer_id,)).fetchone()
+            if row:
+                return row[0]
+            row = c.execute('SELECT Title FROM Supergroup '
+                            'WHERE ID ?', (peer_id,)).fetchone()
+            if row:
+                return row[0]
+        return ''
+
+    async def _download_media(self, media_id, context_id, sender_id, date):
+        media_row = self.dumper.conn.execute(
+            'SELECT LocalID, VolumeID, Secret, Type, MimeType, Name '
+            'FROM Media WHERE ID = ?', (media_id,)
+        ).fetchone()
+        # Documents have attributes and they're saved under the "document"
+        # namespace so we need to split it before actually comparing.
+        media_type = media_row[3].split('.')
+        media_type, media_subtype = media_type[0], media_type[-1]
+        if media_type not in ('photo', 'document'):
+            return  # Only photos or documents are actually downloadable
+
+        formatter = defaultdict(
+            str,
+            context_id=context_id,
+            sender_id=sender_id,
+            type=media_subtype or 'unknown',
+            name=self._get_name(context_id) or 'unknown',
+            sender_name=self._get_name(sender_id) or 'unknown'
+        )
+        ext = mimetypes.guess_extension(media_row[4]) or '.bin',
+        if ext == '.jpe':
+            ext = '.jpg'  # Nobody uses .jpe for photos
+
+        name = None if media_subtype == 'photo' else media_row[5]
+        formatter['filename'] = name or date.strftime(
+            '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
+        )
+        filename = date.strftime(self.media_fmt).format_map(formatter)
+        filename += '.{}{}'.format(media_id, ext)
+
+        if os.path.isfile(filename):
+            __log__.debug('Skipping existing file %s', filename)
+        else:
+            __log__.info('Downloading to %s', filename)
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            if media_type == 'document':
+                location = types.InputDocumentFileLocation(
+                    id=media_row[0],
+                    version=media_row[1],
+                    access_hash=media_row[2]
+                )
+            else:
+                location = types.InputFileLocation(
+                    local_id=media_row[0],
+                    volume_id=media_row[1],
+                    secret=media_row[2]
+                )
+
+            await self.client.download_file(location, filename=filename)
+
     async def _media_consumer(self, queue, bar):
         def progress(saved, total):
             if total is None:
@@ -533,72 +609,10 @@ class Downloader:
 
         msg_row = msg_cursor.fetchone()
         while msg_row:
-            media_row = dumper.conn.execute(
-                'SELECT LocalID, VolumeID, Secret, Type, MimeType, Name '
-                'FROM Media WHERE ID = ?', (msg_row[3],)
-            ).fetchone()
-            # Documents have attributed and they're saved under the "document"
-            # namespace so we need to split it before actually comparing.
-            media_type = media_row[3].split('.')
-            media_type, media_subtype = media_type[0], media_type[-1]
-            if media_type not in ('photo', 'document'):
-                # Only photos or documents are actually downloadable
-                msg_row = msg_cursor.fetchone()
-                continue
-
-            user_row = dumper.conn.execute(
-                'SELECT FirstName, LastName FROM User WHERE ID = ?',
-                (msg_row[2],)
-            ).fetchone()
-            if user_row:
-                sender_name = '{} {}'.format(
-                    msg_row[0] or '', msg_row[1] or ''
-                ).strip()
-            else:
-                sender_name = ''
-
-            date = datetime.datetime.utcfromtimestamp(msg_row[1])
-            formatter = defaultdict(
-                str,
-                id=msg_row[0],
+            self._download_media(
+                media_id=msg_row[3],
                 context_id=target_id,
-                sender_id=msg_row[2] or 0,
-                type=media_subtype or 'unknown',
-                ext=mimetypes.guess_extension(media_row[4]) or '.bin',
-                name=utils.get_display_name(target) or 'unknown',
-                sender_name=sender_name or 'unknown'
+                sender_id=msg_row[2],
+                date=msg_row[1]
             )
-            if formatter['ext'] == '.jpe':
-                formatter['ext'] = '.jpg'  # Nobody uses .jpe for photos
-
-            name = None if media_subtype == 'photo' else media_row[5]
-            formatter['filename'] = name or date.strftime(
-                '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
-            )
-            filename = date.strftime(self.media_fmt).format_map(formatter)
-            if not filename.endswith(formatter['ext']):
-                if filename.endswith('.'):
-                    filename = filename[:-1]
-                filename += formatter['ext']
-
-            if os.path.isfile(filename):
-                __log__.debug('Skipping existing file %s', filename)
-            else:
-                __log__.info('Downloading to %s', filename)
-                os.makedirs(os.path.dirname(filename), exist_ok=True)
-                if media_type == 'document':
-                    location = types.InputDocumentFileLocation(
-                        id=media_row[0],
-                        version=media_row[1],
-                        access_hash=media_row[2]
-                    )
-                else:
-                    location = types.InputFileLocation(
-                        local_id=media_row[0],
-                        volume_id=media_row[1],
-                        secret=media_row[2]
-                    )
-
-                await self.client.download_file(location, filename=filename)
-                await asyncio.sleep(1)
             msg_row = msg_cursor.fetchone()

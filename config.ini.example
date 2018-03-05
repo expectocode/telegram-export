@@ -68,33 +68,28 @@ DBFileName = export
 # string you wish in the name, relative names (including directories, separated
 # by the '/' character) or absolute paths. Anything inside {} will be replaced
 # with a proper value, and possible placeholders are:
-# {id}          - Message ID
 # {sender_id}   - Sender ID
 # {context_id}  - Context ID
 # {name}        - Sanitized name of the context (chat)
 # {filename}    - Sanitized name of the file
 # {sender_name} - Sanitized sender name
 # {type}        - The media type (e.g. photo, document, video...)
-# {ext}         - The extension of the file (*including* the dot)
 #
 # For instance, you could do:
-#   MediaFilenameFmt = "usermedia/{name}/{type}/{filename}{ext}"
+#   MediaFilenameFmt = "usermedia/{name}/{type}/{filename}"
 #
-# That would save files under "usermedia/Chat Name/media type/media file.ext".
-# The extension will be added automatically if you forget it. Invalid format
-# specifiers will be ignored and left blank.
+# That would save files under "usermedia/Chat Name/media type/media file".
+# The extension will always be added automatically as a pair of ".ID.EXT". This
+# allows the program to ensure that duplicate files won't be downloaded even
+# if you change the format string at a later point. You shouldn't change this.
 #
 # To format the date of the mesage, you can use the format specifiers
 # described under the following link anywhere you wish:
 # https://docs.python.org/3.5/library/datetime.html#strftime-and-strptime-behavior
 # eg. for the year you would put %Y in the format string and for a literal %
 # you would put %%, though that would be a bit weird.
-#
-# If the filenames are not unique, you may get files overwritten by other files!
-# Some uniqueness tips: Context IDs won't be the same, Message IDs won't be
-# repeated in the same context
-; MediaFilenameFmt = usermedia/{name}{context_id}/{type}{filename}-{id}{ext}
-MediaFilenameFmt = usermedia/{name}{context_id}/{type}{filename}-{id}{ext}
+; MediaFilenameFmt = usermedia/{name}-{context_id}/{type}-{filename}
+MediaFilenameFmt = usermedia/{name}-{context_id}/{type}-{filename}
 
 # Time after which an unchanged user should be dumped anyway, to avoid a long
 # information gap (see EXPLANATIONS.md). In minutes.
