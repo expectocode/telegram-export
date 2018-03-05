@@ -54,8 +54,7 @@ def load_config(filename):
         'ChunkSize': '100',
         'MaxChunks': '0',
         'LibraryLogLevel': 'WARNING',
-        'MediaFilenameFmt':
-            'usermedia/{name}{context_id}/{type}{filename}-{id}{ext}'
+        'MediaFilenameFmt': 'usermedia/{name}-{context_id}/{type}-{filename}'
     }
 
     # Load from file
