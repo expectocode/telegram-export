@@ -172,6 +172,9 @@ class Downloader:
         return min(e.id for e in events)
 
     def _get_name(self, peer_id):
+        if peer_id is None:
+            return ''
+
         name = self._displays.get(peer_id)
         if name:
             return name
