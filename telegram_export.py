@@ -12,8 +12,8 @@ from contextlib import suppress
 import tqdm
 from telethon_aio import TelegramClient, utils
 
-from downloader import Downloader
 from dumper import Dumper
+from exporter import Exporter
 from formatters import NAME_TO_FORMATTER
 
 logger = logging.getLogger('')  # Root logger
@@ -220,113 +220,6 @@ async def list_or_search_dialogs(args, client):
     client.disconnect()
 
 
-async def entities_from_str(client, string):
-    """Helper function to load entities from the config file"""
-    for who in string.split(','):
-        if not who.strip():
-            continue
-        who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
-        if re.match(r'[^+]-?\d+', who):
-            yield await client.get_input_entity(int(who))
-        else:
-            yield await client.get_input_entity(who)
-
-
-async def get_entities_iter(mode, in_list, client):
-    """
-    Get a generator of entities to act on given a mode ('blacklist',
-    'whitelist') and an input from that mode. If whitelist, generator
-    will be asynchronous.
-    """
-    # TODO change None to empty blacklist?
-    mode = mode.lower()
-    if mode == 'whitelist':
-        assert client is not None
-        async for ent in entities_from_str(client, in_list):
-            yield ent
-    if mode == 'blacklist':
-        assert client is not None
-        blacklist = entities_from_str(client, in_list)
-        avoid = set()
-        async for x in blacklist:
-            avoid.add(utils.get_peer_id(x))
-        # TODO Should this get_dialogs call be cached? How?
-        for dialog in await client.get_dialogs(limit=None):
-            if utils.get_peer_id(dialog.entity) not in avoid:
-                yield dialog.entity
-        return
-
-
-class Exporter:
-    def __init__(self, client, config, dumper):
-        self.client = client
-        self.dumper = dumper
-        self.downloader = Downloader(client, config['Dumper'], dumper)
-        self.logger = logging.getLogger("exporter")
-
-    def try_coro(corof):
-        async def trier(self):
-            try:
-                return await corof(self)
-            except asyncio.CancelledError:
-                # This should be triggered on KeyboardInterrupt's to prevent ugly
-                # traceback from reaching the user. Important code that always
-                # must run (such as the Downloader saving resume info) should go
-                # in their respective `finally:` blocks to ensure it gets called.
-                pass
-            finally:
-                self.close()
-
-        return trier
-
-    def close(self):
-        # Downloader handles its own graceful exit
-        print("Closing exporter")
-        self.client.disconnect()
-        self.dumper.conn.close()
-
-    @try_coro
-    async def start(self):
-        self.dumper.check_self_user((await self.client.get_me(input_peer=True)).user_id)
-        if 'Whitelist' in self.dumper.config:
-            # Only whitelist, don't even get the dialogs
-            async for entity in get_entities_iter('whitelist',
-                                                  self.dumper.config['Whitelist'],
-                                                  self.client):
-                await self.downloader.start(entity)
-        elif 'Blacklist' in self.dumper.config:
-            # May be blacklist, so save the IDs on who to avoid
-            async for entity in get_entities_iter('blacklist',
-                                                  self.dumper.config['Blacklist'],
-                                                  self.client):
-                await self.downloader.start(entity)
-        else:
-            # Neither blacklist nor whitelist - get all
-            for dialog in await self.client.get_dialogs(limit=None):
-                await self.downloader.start(dialog.entity)
-
-    @try_coro
-    async def download_past_media(self):
-        self.dumper.check_self_user((await self.client.get_me(input_peer=True)).user_id)
-
-        if 'Whitelist' in self.dumper.config:
-            # Only whitelist, don't even get the dialogs
-            async for entity in get_entities_iter('whitelist',
-                                                  self.dumper.config['Whitelist'],
-                                                  self.client):
-                await self.downloader.download_past_media(self.dumper, entity)
-        elif 'Blacklist' in self.dumper.config:
-            # May be blacklist, so save the IDs on who to avoid
-            async for entity in get_entities_iter('blacklist',
-                                                  self.dumper.config['Blacklist'],
-                                                  self.client):
-                await self.downloader.download_past_media(self.dumper, entity)
-        else:
-            # Neither blacklist nor whitelist - get all
-            for dialog in await self.client.get_dialogs(limit=None):
-                await self.downloader.download_past_media(self.dumper, dialog.entity)
-
-
 async def main():
     """
     The main telegram-export program. Goes through the
@@ -337,7 +230,7 @@ async def main():
     dumper = Dumper(config['Dumper'])
 
     if args.contexts:
-        self.dumper.config['Whitelist'] = args.contexts
+        dumper.config['Whitelist'] = args.contexts
 
     if args.format:
         formatter = NAME_TO_FORMATTER[args.format](dumper.conn)
@@ -360,10 +253,20 @@ async def main():
         return await list_or_search_dialogs(args, client)
 
     exporter = Exporter(client, config, dumper)
-    if args.download_past_media:
-        await exporter.download_past_media()
-    else:
-        await exporter.start()
+
+    try:
+        if args.download_past_media:
+            await exporter.download_past_media()
+        else:
+            await exporter.start()
+    except asyncio.CancelledError:
+        # This should be triggered on KeyboardInterrupt's to prevent ugly
+        # traceback from reaching the user. Important code that always
+        # must run (such as the Downloader saving resume info) should go
+        # in their respective `finally:` blocks to ensure it gets called.
+        pass
+    finally:
+        exporter.close()
 
     exporter.logger.info("Finished!")
 
