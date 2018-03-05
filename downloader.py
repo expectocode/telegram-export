@@ -203,7 +203,6 @@ class Downloader:
     async def _download_media(self, media_id, context_id, sender_id, date,
                               bar):
         if media_id in self._saved_media_ids:
-            print('Hah!, already had', media_id)
             return
 
         media_row = self.dumper.conn.execute(
@@ -279,7 +278,8 @@ class Downloader:
         while self._running:
             start = time.time()
             media_id, context_id, sender_id, date = await queue.get()
-            self._download_media(media_id, context_id, sender_id, date, bar)
+            await self._download_media(media_id, context_id, sender_id, date,
+                                       bar)
             queue.task_done()
             await asyncio.sleep(max(1.5 - (time.time() - start), 0))
 
@@ -578,7 +578,7 @@ class Downloader:
 
         msg_row = msg_cursor.fetchone()
         while msg_row:
-            self._download_media(
+            await self._download_media(
                 media_id=msg_row[3],
                 context_id=target_id,
                 sender_id=msg_row[2],
