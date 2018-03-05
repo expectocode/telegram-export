@@ -216,14 +216,11 @@ class Dumper:
                       "PRIMARY KEY (ContextID, ID)) WITHOUT ROWID")
 
             c.execute("CREATE TABLE ResumeMedia("
-                      "ContextID INT NOT NULL,"
-                      "FileName TEXT NOT NULL,"
-                      "FileSize INT,"
-                      "Kind TEXT NOT NULL,"
-                      "LocalID INT NOT NULL,"
-                      "VolumeID INT NOT NULL,"
-                      "Secret INT NOT NULL,"
-                      "PRIMARY KEY (ContextID, FileName)) WITHOUT ROWID")
+                      "MediaID INT NOT NULL,"
+                      "ContextID TEXT NOT NULL,"
+                      "SenderID INT NOT NULL,"
+                      "Date INT NOT NULL,"
+                      "PRIMARY KEY (MediaID)) WITHOUT ROWID")
             self.conn.commit()
 
     def _upgrade_database(self, old):
@@ -700,50 +697,27 @@ class Dumper:
         the iterator is consumed completely.
         """
         c = self.conn.execute(
-            "SELECT FileName, FileSize, Kind, LocalID, VolumeID, Secret "
+            "SELECT MediaID, SenderID, Date "
             "FROM ResumeMedia WHERE ContextID = ?", (context_id,)
         )
         row = c.fetchone()
         while row:
-            filename, file_size, kind, local_id, volume_id, secret = row
-            if kind == 'file':
-                yield (types.InputFileLocation(local_id=local_id,
-                                               volume_id=volume_id,
-                                               secret=secret),
-                       filename, file_size)
-            elif kind == 'document':
-                yield (types.InputDocumentFileLocation(id=local_id,
-                                                       access_hash=secret,
-                                                       version=volume_id),
-                       filename, file_size)
+            media_id, sender_id, date = row
+            yield media_id, sender_id, datetime.utcfromtimestamp(date)
             row = c.fetchone()
 
         c.execute("DELETE FROM ResumeMedia WHERE ContextID = ?",
                   (context_id,))
 
-    def save_resume_media(self, context_id, media_tuples):
+    def save_resume_media(self, media_tuples):
         """
         Saves the given media tuples for resuming at a later point.
 
-        The tuples should consist of three elements, these being
-        ``(location, filename, file_size)v; ``location`` being itself either
-        ``types.InputFileLocation`` or ``types.InputDocumentFileLocation``.
+        The tuples should consist of four elements, these being
+        ``(media_id, context_id, sender_id, date)``.
         """
-        rows = []
-        for location, filename, file_size in media_tuples:
-            if isinstance(location, types.InputFileLocation):
-                rows.append((
-                    context_id, filename, file_size, 'file',
-                    location.local_id, location.volume_id, location.secret
-                ))
-            elif isinstance(location, types.InputDocumentFileLocation):
-                rows.append((
-                    context_id, filename, file_size, 'document',
-                    location.id, location.version, location.access_hash
-                ))
-        c = self.conn.cursor()
-        c.executemany("INSERT OR REPLACE INTO ResumeMedia "
-                      "VALUES (?,?,?,?,?,?,?)", rows)
+        self.conn.executemany("INSERT OR REPLACE INTO ResumeMedia "
+                              "VALUES (?,?,?,?)", media_tuples)
 
     def _insert_if_valid_date(self, into, values, date_column, where):
         """

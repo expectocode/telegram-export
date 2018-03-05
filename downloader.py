@@ -384,8 +384,8 @@ class Downloader:
         asyncio.ensure_future(self._chat_consumer(self._chat_queue, ent_bar))
         asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar))
         self.enqueue_entities(self.dumper.iter_resume_entities(target_id))
-        for media in self.dumper.iter_resume_media(target_id):
-            self._media_queue.put_nowait(media)
+        for mid, sender_id, date in self.dumper.iter_resume_media(target_id):
+            self.enqueue_media(mid, target_id, sender_id, date)
 
         try:
             self.enqueue_entities((target,))
