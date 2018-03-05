@@ -49,6 +49,14 @@ class Downloader:
         self.dumper = dumper
         self._checked_entity_ids = set()
         self._media_bar = None
+
+        # To get around the fact we always rely on the database to download
+        # media (which simplifies certain operations and ensures that the
+        # resulting filename are always the same) but this (the db) might not
+        # have some entities dumped yet, we save the only needed information
+        # in memory for every dump, that is, {peer_id: display}.
+        self._displays = {}
+
         # We're gonna need a few queues if we want to do things concurrently.
         # None values should be inserted to notify that the dump has finished.
         self._media_queue = asyncio.Queue()
@@ -93,7 +101,7 @@ class Downloader:
             else:
                 self.dumper.dump_channel(entity.full_chat, chat, photo_id)
 
-    def _dump_messages(self, messages, target, entities):
+    def _dump_messages(self, messages, target):
         """
         Helper method to iterate the messages from a GetMessageHistoryRequest
         and dump them into the Dumper, mostly to avoid excessive nesting.
@@ -127,7 +135,7 @@ class Downloader:
                     media_id=media_id
                 )
 
-    def _dump_admin_log(self, events, target, entities):
+    def _dump_admin_log(self, events, target):
         """
         Helper method to iterate the events from a GetAdminLogRequest
         and dump them into the Dumper, mostly to avoid excessive nesting.
@@ -153,6 +161,10 @@ class Downloader:
         return min(e.id for e in events)
 
     def _get_name(self, peer_id):
+        name = self._displays.get(peer_id)
+        if name:
+            return name
+
         c = self.dumper.conn.cursor()
         _, kind = utils.resolve_id(peer_id)
         if kind == types.PeerUser:
@@ -291,6 +303,7 @@ class Downloader:
         """
         for entity in entities:
             eid = utils.get_peer_id(entity)
+            self._displays[eid] = utils.get_display_name(entity)
             if isinstance(entity, types.User):
                 if entity.deleted or entity.min:
                     continue  # Empty name would cause IntegrityError
@@ -313,9 +326,6 @@ class Downloader:
                 else:
                     self._chat_queue.put_nowait(entity)
 
-    # TODO Using this everywhere has an issue!
-    # We might not have dumped the context_id/sender_id entities,
-    # but we rely on their name... Any clean way to get around this? :/
     def enqueue_media(self, media_id, context_id, sender_id, date):
         """
         Enqueues the given message or media from the given context entity
@@ -428,10 +438,7 @@ class Downloader:
                 ent_bar.total = len(self._checked_entity_ids)
 
                 # Dump the messages from this batch
-                entities = {utils.get_peer_id(x): x for x in itertools.chain(
-                    history.users, history.chats, (target,)
-                )}
-                self._dump_messages(history.messages, target, entities)
+                self._dump_messages(history.messages, target)
 
                 # Determine whether to continue dumping or we're done
                 count = len(history.messages)
@@ -476,13 +483,8 @@ class Downloader:
                         result.users, result.chats
                     ))
                     if result.events:
-                        entities = {
-                            utils.get_peer_id(x): x for x in itertools.chain(
-                                result.users, result.chats, (target,))
-                        }
-                        log_req.max_id = self._dump_admin_log(
-                            result.events, target, entities
-                        )
+                        log_req.max_id = self._dump_admin_log(result.events,
+                                                              target)
                     else:
                         log_req = None
 
@@ -502,12 +504,8 @@ class Downloader:
                     result.users, result.chats
                 ))
                 if result.events:
-                    log_req.max_id = self._dump_admin_log(
-                        result.events, target, entities={
-                            utils.get_peer_id(x): x for x in itertools.chain(
-                                result.users, result.chats, (target,))
-                        }
-                    )
+                    log_req.max_id = self._dump_admin_log(result.events,
+                                                          target)
                     await asyncio.sleep(max(1 - (time.time() - start), 0))
                 else:
                     log_req = None
@@ -536,6 +534,7 @@ class Downloader:
                 self.dumper.save_resume_entities(target_id, entities)
 
             # Do the same with the media queue
+            # TODO Update the ResumeMedia table to reflect new queue format
             media = []
             while not self._media_queue.empty():
                 media.append(self._media_queue.get_nowait())
