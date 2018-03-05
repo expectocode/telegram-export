@@ -50,17 +50,6 @@ class Downloader:
         self._checked_entity_ids = set()
         self._media_bar = None
 
-        # Since all downloaded media ends with ".<media id>.<ext>" we
-        # can rely on this to know which media files don't need downloading.
-        self._saved_media_ids = set()
-        for _, _, filenames in os.walk(config['OutputDirectory']):
-            for filename in filenames:
-                name = os.path.basename(filename).split('.')
-                for ext in reversed(name):
-                    if ext.isdigit():
-                        self._saved_media_ids.add(int(ext))
-                        break
-
         # To get around the fact we always rely on the database to download
         # media (which simplifies certain operations and ensures that the
         # resulting filename are always the same) but this (the db) might not
@@ -205,9 +194,6 @@ class Downloader:
 
     async def _download_media(self, media_id, context_id, sender_id, date,
                               bar):
-        if media_id in self._saved_media_ids:
-            return
-
         media_row = self.dumper.conn.execute(
             'SELECT LocalID, VolumeID, Secret, Type, MimeType, Name, Size '
             'FROM Media WHERE ID = ?', (media_id,)
@@ -237,6 +223,9 @@ class Downloader:
         )
         filename = date.strftime(self.media_fmt).format_map(formatter)
         filename += '.{}{}'.format(media_id, ext)
+        if os.path.isfile(filename):
+            __log__.debug('Skipping already-existing file %s', filename)
+            return
 
         __log__.info('Downloading to %s', filename)
         os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -274,7 +263,6 @@ class Downloader:
             part_size_kb=DOWNLOAD_PART_SIZE // 1024,
             progress_callback=progress
         )
-        self._saved_media_ids.add(media_id)
 
     async def _media_consumer(self, queue, bar):
         # TODO Delete half-downloaded files
