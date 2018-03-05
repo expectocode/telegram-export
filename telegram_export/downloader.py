@@ -13,7 +13,7 @@ from telethon_aio import utils
 from telethon_aio.errors import ChatAdminRequiredError
 from telethon_aio.tl import types, functions
 
-import utils as export_utils
+from . import utils as export_utils
 
 __log__ = logging.getLogger(__name__)
 

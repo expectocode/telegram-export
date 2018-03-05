@@ -85,8 +85,7 @@ def get_media_type(media):
                 elif isinstance(attr, types.DocumentAttributeAudio):
                     if attr.voice:
                         return 'document.voice'
-                    else:
-                        return 'document.audio'
+                    return 'document.audio'
         return 'document'
 
     if isinstance(media, (types.Photo,
