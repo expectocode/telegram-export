@@ -20,7 +20,8 @@ logger = logging.getLogger('')  # Root logger
 
 
 NO_USERNAME = '<no username>'
-SCRIPT_DIR = os.path.dirname(__file__)
+# Convert '' from `python3 telegram_export.py` into '.'
+SCRIPT_DIR = os.path.dirname(__file__) or '.'
 
 
 class TqdmLoggingHandler(logging.Handler):
@@ -75,8 +76,9 @@ def load_config(filename):
     telethon_logger = logging.getLogger('telethon_aio')
     telethon_logger.setLevel(getattr(logging, level))
     telethon_logger.addHandler(handler)
+
     # Convert default output dir '.' to script dir
-    if config['Dumper']['OutputDirectory'] == '.':
+    if config['Dumper']['OutputDirectory']  == '.':
         config['Dumper']['OutputDirectory'] = SCRIPT_DIR
     os.makedirs(config['Dumper']['OutputDirectory'], exist_ok=True)
 
@@ -112,6 +114,7 @@ def parse_args():
 
     parser.add_argument('--config-file', default=None,
                         help='specify a config file. Default config.ini')
+                        # This None is handled in read_config.
 
     parser.add_argument('--contexts', type=str,
                         help='list of contexts to act on eg --contexts=12345, '
@@ -254,6 +257,76 @@ async def get_entities_iter(mode, in_list, client):
         return
 
 
+class Exporter:
+    def __init__(self, client, config, dumper):
+        self.client = client
+        self.dumper = dumper
+        self.downloader = Downloader(client, config['Dumper'], dumper)
+        self.logger = logging.getLogger("exporter")
+
+    def try_coro(corof):
+        async def trier(self):
+            try:
+                return await corof(self)
+            except asyncio.CancelledError:
+                # This should be triggered on KeyboardInterrupt's to prevent ugly
+                # traceback from reaching the user. Important code that always
+                # must run (such as the Downloader saving resume info) should go
+                # in their respective `finally:` blocks to ensure it gets called.
+                pass
+            finally:
+                self.close()
+
+        return trier
+
+    def close(self):
+        # Downloader handles its own graceful exit
+        print("Closing exporter")
+        self.client.disconnect()
+        self.dumper.conn.close()
+
+    @try_coro
+    async def start(self):
+        self.dumper.check_self_user((await self.client.get_me(input_peer=True)).user_id)
+        if 'Whitelist' in self.dumper.config:
+            # Only whitelist, don't even get the dialogs
+            async for entity in get_entities_iter('whitelist',
+                                                  self.dumper.config['Whitelist'],
+                                                  self.client):
+                await self.downloader.start(entity)
+        elif 'Blacklist' in self.dumper.config:
+            # May be blacklist, so save the IDs on who to avoid
+            async for entity in get_entities_iter('blacklist',
+                                                  self.dumper.config['Blacklist'],
+                                                  self.client):
+                await self.downloader.start(entity)
+        else:
+            # Neither blacklist nor whitelist - get all
+            for dialog in await self.client.get_dialogs(limit=None):
+                await self.downloader.start(dialog.entity)
+
+    @try_coro
+    async def download_past_media(self):
+        self.dumper.check_self_user((await self.client.get_me(input_peer=True)).user_id)
+
+        if 'Whitelist' in self.dumper.config:
+            # Only whitelist, don't even get the dialogs
+            async for entity in get_entities_iter('whitelist',
+                                                  self.dumper.config['Whitelist'],
+                                                  self.client):
+                await self.downloader.download_past_media(self.dumper, entity)
+        elif 'Blacklist' in self.dumper.config:
+            # May be blacklist, so save the IDs on who to avoid
+            async for entity in get_entities_iter('blacklist',
+                                                  self.dumper.config['Blacklist'],
+                                                  self.client):
+                await self.downloader.download_past_media(self.dumper, entity)
+        else:
+            # Neither blacklist nor whitelist - get all
+            for dialog in await self.client.get_dialogs(limit=None):
+                await self.downloader.download_past_media(self.dumper, dialog.entity)
+
+
 async def main():
     """
     The main telegram-export program. Goes through the
@@ -262,6 +335,9 @@ async def main():
     args = parse_args()
     config = load_config(args.config_file)
     dumper = Dumper(config['Dumper'])
+
+    if args.contexts:
+        self.dumper.config['Whitelist'] = args.contexts
 
     if args.format:
         formatter = NAME_TO_FORMATTER[args.format](dumper.conn)
@@ -283,49 +359,13 @@ async def main():
     if args.list_dialogs or args.search_string:
         return await list_or_search_dialogs(args, client)
 
-    downloader = Downloader(client, config['Dumper'], dumper)
-    try:
-        dumper.check_self_user((await client.get_me(input_peer=True)).user_id)
-        if args.contexts:
-            dumper.config['Whitelist'] = args.contexts
+    exporter = Exporter(client, config, dumper)
+    if args.download_past_media:
+        await exporter.download_past_media()
+    else:
+        await exporter.start()
 
-        if 'Whitelist' in dumper.config:
-            # Only whitelist, don't even get the dialogs
-            async for entity in get_entities_iter('whitelist',
-                                                  dumper.config['Whitelist'],
-                                                  client):
-                if args.download_past_media:
-                    await downloader.download_past_media(dumper, entity)
-                else:
-                    await downloader.start(entity)
-        elif 'Blacklist' in dumper.config:
-            # May be blacklist, so save the IDs on who to avoid
-            async for entity in get_entities_iter('blacklist',
-                                                  dumper.config['Blacklist'],
-                                                  client):
-                if args.download_past_media:
-                    await downloader.download_past_media(dumper, entity)
-                else:
-                    await downloader.start(entity)
-        else:
-            # Neither blacklist nor whitelist - get all
-            for dialog in await client.get_dialogs(limit=None):
-                if args.download_past_media:
-                    await downloader.download_past_media(dumper, dialog.entity)
-                else:
-                    await downloader.start(dialog.entity)
-
-    except asyncio.CancelledError:
-        # This should be triggered on KeyboardInterrupt's to prevent ugly
-        # traceback from reaching the user. Important code that always
-        # must run (such as the Downloader saving resume info) should go
-        # in their respective `finally:` blocks to ensure it gets called.
-        # TODO: Check that this is actually the case.
-        pass
-    finally:
-        logging.getLogger(__name__).info("Closing exporter")
-        client.disconnect()
-        dumper.conn.close()
+    exporter.logger.info("Finished!")
 
 
 if __name__ == '__main__':

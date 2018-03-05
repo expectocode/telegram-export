@@ -227,7 +227,7 @@ class Downloader:
             __log__.debug('Skipping already-existing file %s', filename)
             return
 
-        __log__.info('Downloading to %s', filename)
+        __log__.debug('Downloading to %s', filename)
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         if media_type == 'document':
             location = types.InputDocumentFileLocation(
