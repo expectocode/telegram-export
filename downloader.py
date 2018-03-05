@@ -72,14 +72,26 @@ class Downloader:
         photo if any so it can be downloaded later by a different coroutine.
         """
         if isinstance(entity, types.UserFull):
-            user = entity.user
-            self.enqueue_media(entity.profile_photo, user, user)
             photo_id = self.dumper.dump_media(entity.profile_photo)
+            if self._check_media(entity.profile_photo):
+                self.enqueue_media(
+                    media_id=photo_id,
+                    context_id=utils.get_peer_id(entity.user),
+                    sender_id=utils.get_peer_id(entity.user),
+                    date=getattr(entity.profile_photo, 'date', None)
+                )
             self.dumper.dump_user(entity, photo_id=photo_id)
 
         elif isinstance(entity, types.Chat):
-            self.enqueue_media(entity.photo, entity, entity)
             photo_id = self.dumper.dump_media(entity.photo)
+            if self._check_media(entity.photo):
+                self.enqueue_media(
+                    media_id=photo_id,
+                    context_id=utils.get_peer_id(entity),
+                    sender_id=utils.get_peer_id(entity),
+                    date=getattr(entity.photo, 'date', None)
+                )
+
             self.dumper.dump_chat(entity, photo_id=photo_id)
 
         elif isinstance(entity, types.messages.ChatFull):
@@ -87,7 +99,14 @@ class Downloader:
             chat = next(
                 x for x in entity.chats if x.id == entity.full_chat.id
             )
-            self.enqueue_media(entity.full_chat.chat_photo, chat, chat)
+            if self._check_media(entity.full_chat.chat_photo):
+                self.enqueue_media(
+                    media_id=photo_id,
+                    context_id=utils.get_peer_id(chat),
+                    sender_id=utils.get_peer_id(chat),
+                    date=getattr(entity.full_chat.chat_photo, 'date', None)
+                )
+
             if chat.megagroup:
                 self.dumper.dump_supergroup(entity.full_chat, chat,
                                             photo_id)
@@ -103,18 +122,26 @@ class Downloader:
         """
         for m in messages:
             if isinstance(m, types.Message):
-                self.enqueue_media(m, target, entities.get(m.from_id))
+                media_id = self.dumper.dump_media(m.media)
+                if media_id and self._check_media(m.media):
+                    self.enqueue_media(
+                        media_id, utils.get_peer_id(target), m.from_id, m.date
+                    )
+
                 self.dumper.dump_message(
                     message=m,
                     context_id=utils.get_peer_id(target),
                     forward_id=self.dumper.dump_forward(m.fwd_from),
-                    media_id=self.dumper.dump_media(m.media)
+                    media_id=media_id
                 )
             elif isinstance(m, types.MessageService):
                 if isinstance(m.action, types.MessageActionChatEditPhoto):
                     media_id = self.dumper.dump_media(m.action.photo)
-                    self.enqueue_media(m.action.photo, target,
-                                       entities.get(m.from_id), known_id=m.id)
+                    if media_id and self._check_media(m.action.photo):
+                        self.enqueue_media(
+                            media_id, utils.get_peer_id(target), m.from_id,
+                            m.date
+                        )
                 else:
                     media_id = None
                 self.dumper.dump_message_service(
@@ -131,14 +158,25 @@ class Downloader:
         Also enqueues any media to be downloaded later by a different coroutine.
         """
         for event in events:
+            assert isinstance(event, types.ChannelAdminLogEvent)
             if isinstance(event.action,
                           types.ChannelAdminLogEventActionChangePhoto):
                 media_id1 = self.dumper.dump_media(event.action.new_photo)
                 media_id2 = self.dumper.dump_media(event.action.prev_photo)
-                self.enqueue_media(event.action.new_photo, target,
-                                   from_entity=entities[event.user_id])
-                self.enqueue_media(event.action.prev_photo, target,
-                                   from_entity=entities[event.user_id])
+                if self._check_media(event.action.new_photo):
+                    self.enqueue_media(
+                        media_id=media_id1,
+                        context_id=utils.get_peer_id(target),
+                        sender_id=event.user_id,
+                        date=event.date
+                    )
+                if self._check_media(event.action.prev_photo):
+                    self.enqueue_media(
+                        media_id=media_id2,
+                        context_id=utils.get_peer_id(target),
+                        sender_id=event.user_id,
+                        date=event.date
+                    )
             else:
                 media_id1 = None
                 media_id2 = None
@@ -172,9 +210,10 @@ class Downloader:
                 return row[0]
         return ''
 
-    async def _download_media(self, media_id, context_id, sender_id, date):
+    async def _download_media(self, media_id, context_id, sender_id, date,
+                              bar):
         media_row = self.dumper.conn.execute(
-            'SELECT LocalID, VolumeID, Secret, Type, MimeType, Name '
+            'SELECT LocalID, VolumeID, Secret, Type, MimeType, Name, Size '
             'FROM Media WHERE ID = ?', (media_id,)
         ).fetchone()
         # Documents have attributes and they're saved under the "document"
@@ -204,26 +243,25 @@ class Downloader:
         filename += '.{}{}'.format(media_id, ext)
 
         if os.path.isfile(filename):
+            # TODO Rely on the extension trick instead
             __log__.debug('Skipping existing file %s', filename)
+            return
+
+        __log__.info('Downloading to %s', filename)
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        if media_type == 'document':
+            location = types.InputDocumentFileLocation(
+                id=media_row[0],
+                version=media_row[1],
+                access_hash=media_row[2]
+            )
         else:
-            __log__.info('Downloading to %s', filename)
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
-            if media_type == 'document':
-                location = types.InputDocumentFileLocation(
-                    id=media_row[0],
-                    version=media_row[1],
-                    access_hash=media_row[2]
-                )
-            else:
-                location = types.InputFileLocation(
-                    local_id=media_row[0],
-                    volume_id=media_row[1],
-                    secret=media_row[2]
-                )
+            location = types.InputFileLocation(
+                local_id=media_row[0],
+                volume_id=media_row[1],
+                secret=media_row[2]
+            )
 
-            await self.client.download_file(location, filename=filename)
-
-    async def _media_consumer(self, queue, bar):
         def progress(saved, total):
             if total is None:
                 # No size was found so the bar total wasn't incremented before
@@ -237,18 +275,21 @@ class Downloader:
                 # All chunks are of the same size and this isn't the last one
                 bar.update(DOWNLOAD_PART_SIZE)
 
+        if media_row[6] is not None:
+            bar.total += media_row[6]
+
+        await self.client.download_file(
+            location, file=filename, file_size=media_row[6],
+            part_size_kb=DOWNLOAD_PART_SIZE // 1024,
+            progress_callback=progress
+        )
+
+    async def _media_consumer(self, queue, bar):
+        # TODO Delete half-downloaded files
         while self._running:
             start = time.time()
-            location, file, file_size = await queue.get()
-            if file_size is not None:
-                bar.total += file_size
-
-            os.makedirs(os.path.dirname(file), exist_ok=True)
-            await self.client.download_file(
-                location, file=file, file_size=file_size,
-                part_size_kb=DOWNLOAD_PART_SIZE // 1024,
-                progress_callback=progress
-            )
+            media_id, context_id, sender_id, date = await queue.get()
+            self._download_media(media_id, context_id, sender_id, date, bar)
             queue.task_done()
             await asyncio.sleep(max(1.5 - (time.time() - start), 0))
 
@@ -305,83 +346,21 @@ class Downloader:
                 else:
                     self._chat_queue.put_nowait(entity)
 
-    def enqueue_media(self, media, target, from_entity, known_id=None):
+    # TODO Reuse more code when calling this method...
+    #
+    # TODO Using this everywhere has another issue!
+    # We might not have dumped the context_id/sender_id entities,
+    # but we rely on their name... Any clean way to get around this? :/
+    def enqueue_media(self, media_id, context_id, sender_id, date):
         """
         Enqueues the given message or media from the given context entity
         to be downloaded later. If the ID of the message is known it should
         be set in known_id. The media won't be enqueued unless its download
         is desired.
         """
-        if isinstance(media, types.Message):
-            msg = media
-            if not self._check_media(msg.media):
-                return
-
-            media = msg.media
-            location, file_size = export_utils.get_file_location(media)
-            if not location:
-                return
-
-            # TODO Reuse the formatter when getting a filename. Somehow.
-            formatter = defaultdict(
-                str,
-                id=msg.id,
-                context_id=utils.get_peer_id(target),
-                sender_id=msg.from_id or 0,
-                ext=utils.get_extension(media) or '.bin',
-                type=export_utils.get_media_type(media) or 'unknown',
-                name=utils.get_display_name(target) or 'unknown',
-                sender_name=utils.get_display_name(
-                    from_entity) or 'unknown'
-            )
-            filename = None
-            if isinstance(media, types.MessageMediaDocument):
-                for attr in media.document.attributes:
-                    if isinstance(attr, types.DocumentAttributeFilename):
-                        filename = attr.file_name
-
-            formatter['filename'] = filename or msg.date.strftime(
-                '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
-            )
-            filename = msg.date.strftime(self.media_fmt).format_map(formatter)
-            if not filename.endswith(formatter['ext']):
-                if filename.endswith('.'):
-                    filename = filename[:-1]
-                filename += formatter['ext']
-
-            self._media_queue.put_nowait((location, filename, file_size))
-
-        elif isinstance(media, (types.Photo,
-                                types.UserProfilePhoto, types.ChatPhoto)):
-            if not self.max_size or 'chatphoto' not in self.types:
-                return
-
-            if isinstance(media, types.Photo):
-                date = media.date
-                known_id = known_id or media.id
-            else:
-                date = datetime.datetime.now()
-                known_id = known_id or utils.get_peer_id(target)
-
-            location, file_size = export_utils.get_file_location(media)
-            formatter = defaultdict(
-                str,
-                id=known_id,
-                context_id=utils.get_peer_id(target),
-                sender_id=utils.get_peer_id(target),
-                ext='.jpg',
-                type='chatphoto',
-                filename=date.strftime('chatphoto_%Y-%m-%d_%H-%M-%S'),
-                name=utils.get_display_name(target) or 'unknown',
-                sender_name=utils.get_display_name(target) or 'unknown'
-            )
-            filename = date.strftime(self.media_fmt).format_map(formatter)
-            if not filename.endswith(formatter['ext']):
-                if filename.endswith('.'):
-                    filename = filename[:-1]
-                filename += formatter['ext']
-
-            self._media_queue.put_nowait((location, filename, file_size))
+        if not date:
+            date = datetime.datetime.now()
+        self._media_queue.put_nowait((media_id, context_id, sender_id, date))
 
     async def start(self, target_id):
         """
@@ -601,6 +580,9 @@ class Downloader:
         target_in = await self.client.get_input_entity(target_id)
         target = await self.client.get_entity(target_in)
         target_id = utils.get_peer_id(target)
+        bar = tqdm.tqdm(unit='B', desc='media', unit_divisor=1000,
+                        unit_scale=True, bar_format=BAR_FORMAT, total=0,
+                        postfix={'chat': utils.get_display_name(target)})
 
         msg_cursor = dumper.conn.cursor()
         msg_cursor.execute('SELECT ID, Date, FromID, MediaID FROM Message '
@@ -613,6 +595,7 @@ class Downloader:
                 media_id=msg_row[3],
                 context_id=target_id,
                 sender_id=msg_row[2],
-                date=msg_row[1]
+                date=msg_row[1],
+                bar=bar
             )
             msg_row = msg_cursor.fetchone()

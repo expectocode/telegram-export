@@ -89,6 +89,10 @@ def get_media_type(media):
                         return 'document.audio'
         return 'document'
 
+    if isinstance(media, (types.Photo,
+                          types.UserProfilePhoto, types.ChatPhoto)):
+        return 'chatphoto'
+
     return 'unknown'
 
 
