@@ -278,7 +278,8 @@ class Downloader:
         while self._running:
             start = time.time()
             media_id, context_id, sender_id, date = await queue.get()
-            await self._download_media(media_id, context_id, sender_id, date,
+            await self._download_media(media_id, context_id, sender_id,
+                                       datetime.datetime.utcfromtimestamp(date),
                                        bar)
             queue.task_done()
             await asyncio.sleep(max(1.5 - (time.time() - start), 0))
@@ -345,7 +346,9 @@ class Downloader:
         is desired.
         """
         if not date:
-            date = datetime.datetime.now()
+            date = int(time.time())
+        elif not isinstance(date, int):
+            date = int(date.timestamp())
         self._media_queue.put_nowait((media_id, context_id, sender_id, date))
 
     def enqueue_photo(self, photo, photo_id, context,
@@ -545,12 +548,10 @@ class Downloader:
                 self.dumper.save_resume_entities(target_id, entities)
 
             # Do the same with the media queue
-            # TODO Update the ResumeMedia table to reflect new queue format
             media = []
             while not self._media_queue.empty():
                 media.append(self._media_queue.get_nowait())
-            if media:
-                self.dumper.save_resume_media(target_id, media)
+            self.dumper.save_resume_media(media)
 
             if entities or media:
                 self.dumper.commit()

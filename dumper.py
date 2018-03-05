@@ -218,8 +218,8 @@ class Dumper:
             c.execute("CREATE TABLE ResumeMedia("
                       "MediaID INT NOT NULL,"
                       "ContextID TEXT NOT NULL,"
-                      "SenderID INT NOT NULL,"
-                      "Date INT NOT NULL,"
+                      "SenderID INT,"
+                      "Date INT,"
                       "PRIMARY KEY (MediaID)) WITHOUT ROWID")
             self.conn.commit()
 
