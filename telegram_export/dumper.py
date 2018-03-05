@@ -10,9 +10,10 @@ from datetime import datetime
 from enum import Enum
 import os.path
 
-import utils
 from telethon_aio.tl import types
 from telethon_aio.utils import get_peer_id, resolve_id, get_input_peer
+
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +279,7 @@ class Dumper:
                              media_id,
                              utils.encode_msg_entities(message.entities),
                              None)  # No MessageAction
-                            )
+                           )
 
     def dump_message_service(self, message, context_id, media_id):
         """Similar to self.dump_message, but for MessageAction's."""
@@ -303,7 +304,7 @@ class Dumper:
                              media_id,  # Might have e.g. a new chat Photo
                              None,  # No entities
                              name)
-                            )
+                           )
 
     def dump_admin_log_event(self, event, context_id, media_id1, media_id2):
         """Similar to self.dump_message_service but for channel actions."""
@@ -324,7 +325,7 @@ class Dumper:
                              media_id2,
                              name,
                              extra)
-                            )
+                           )
 
     def dump_user(self, user_full, photo_id, timestamp=None):
         """Dump a UserFull into the User table

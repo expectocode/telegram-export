@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""The main telegram-export program"""
+"""The main telegram-export script.
+Handles arguments and config, then calls the Exporter.
+"""
 import argparse
 import asyncio
 import configparser
@@ -12,9 +14,9 @@ from contextlib import suppress
 import tqdm
 from telethon_aio import TelegramClient, utils
 
-from dumper import Dumper
-from exporter import Exporter
-from formatters import NAME_TO_FORMATTER
+from telegram_export.dumper import Dumper
+from telegram_export.exporter import Exporter
+from telegram_export.formatters import NAME_TO_FORMATTER
 
 logger = logging.getLogger('')  # Root logger
 

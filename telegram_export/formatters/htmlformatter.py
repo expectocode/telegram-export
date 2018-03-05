@@ -2,7 +2,7 @@
 Formatter to display paginated(?) HTML of a context.
 Very much unfinished and needs a web designer to work on it.
 """
-from formatters import BaseFormatter
+from . import BaseFormatter
 
 
 class HtmlFormatter(BaseFormatter):

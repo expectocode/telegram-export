@@ -1,5 +1,5 @@
 """A Formatter class to output pure text"""
-from formatters import BaseFormatter
+from . import BaseFormatter
 
 UNKNOWN_USER_TEXT = '(???)'
 

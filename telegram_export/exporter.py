@@ -5,7 +5,7 @@ import logging
 
 from telethon_aio import utils
 
-from downloader import Downloader
+from .downloader import Downloader
 
 
 async def entities_from_str(client, string):
