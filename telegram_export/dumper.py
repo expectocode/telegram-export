@@ -244,7 +244,7 @@ class Dumper:
     # kind of callback, but there could be a way to make this cleaner.
     # Perhaps a dictionary mapping 'message' to the message callback set.
 
-    def add_callback(dump_method, callback):
+    def add_callback(self, dump_method, callback):
         """
         Add the callback function to the set of callbacks for the given
         dump method. dump_method should be a string, and callback should be a
@@ -257,9 +257,9 @@ class Dumper:
             raise ValueError("Cannot attach callback to method {}. Available "
                              "methods are {}".format(dump_method, self.dump_methods))
 
-        self.dump_methods[dump_method].add(callback)
+        self._dump_callbacks[dump_method].add(callback)
 
-    def add_callback(dump_method, callback):
+    def remove_callback(self, dump_method, callback):
         """
         Remove the callback function from the set of callbacks for the given
         dump method. Will raise KeyError if the callback is not in the set of
@@ -269,7 +269,7 @@ class Dumper:
             raise ValueError("Cannot remove callback from method {}. Available "
                              "methods are {}".format(dump_method, self.dump_methods))
 
-        self.dump_methods[dump_method].remove(callback)
+        self._dump_callbacks[dump_method].remove(callback)
 
     def check_self_user(self, self_id):
         """
