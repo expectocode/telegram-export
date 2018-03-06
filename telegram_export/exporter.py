@@ -36,8 +36,8 @@ async def get_entities_iter(mode, in_list, client):
         assert client is not None
         blacklist = entities_from_str(client, in_list)
         avoid = set()
-        async for x in blacklist:
-            avoid.add(utils.get_peer_id(x))
+        async for entity in blacklist:
+            avoid.add(utils.get_peer_id(entity))
         # TODO Should this get_dialogs call be cached? How?
         for dialog in await client.get_dialogs(limit=None):
             if utils.get_peer_id(dialog.entity) not in avoid:

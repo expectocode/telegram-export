@@ -243,6 +243,7 @@ class Downloader:
             )
 
         def progress(saved, total):
+            """Increment the tqdm progress bar"""
             if total is None:
                 # No size was found so the bar total wasn't incremented before
                 bar.total += saved

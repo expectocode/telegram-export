@@ -73,8 +73,8 @@ class Dumper:
         self.invalidation_time = max(config.getint('InvalidationTime', 0), -1)
 
         self.dump_methods = ('message', 'user', 'message_service', 'channel',
-                              'supergroup', 'chat', 'adminlog_event', 'media',
-                              'participants_delta', 'media', 'forward')
+                             'supergroup', 'chat', 'adminlog_event', 'media',
+                             'participants_delta', 'media', 'forward')
 
         self._dump_callbacks = {method: set() for method in self.dump_methods}
 
@@ -396,7 +396,7 @@ class Dumper:
             callback(values)
 
         return self._insert_if_valid_date('User', values, date_column=1,
-                                   where=('ID', user_full.user.id))
+                                          where=('ID', user_full.user.id))
 
     def dump_channel(self, channel_full, channel, photo_id, timestamp=None):
         """Dump a Channel into the Channel table.
@@ -416,7 +416,7 @@ class Dumper:
             callback(values)
 
         return self._insert_if_valid_date('Channel', values, date_column=1,
-                                   where=('ID', get_peer_id(channel)))
+                                          where=('ID', get_peer_id(channel)))
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id,
                         timestamp=None):
@@ -738,7 +738,7 @@ class Dumper:
                               "WHERE ContextID = ?", (context_id,))
         row = c.fetchone()
         while row:
-            eid, kind = resolve_id(row[0])
+            kind = resolve_id(row[0])[1]
             if kind == types.PeerUser:
                 yield types.InputPeerUser(row[0], row[1])
             elif kind == types.PeerChat:

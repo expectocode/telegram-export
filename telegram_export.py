@@ -80,7 +80,7 @@ def load_config(filename):
     telethon_logger.addHandler(handler)
 
     # Convert default output dir '.' to script dir
-    if config['Dumper']['OutputDirectory']  == '.':
+    if config['Dumper']['OutputDirectory'] == '.':
         config['Dumper']['OutputDirectory'] = SCRIPT_DIR
     os.makedirs(config['Dumper']['OutputDirectory'], exist_ok=True)
 
