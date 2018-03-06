@@ -72,6 +72,12 @@ class Dumper:
         self.max_chunks = max(int(config.get('MaxChunks', 0)), 0)
         self.invalidation_time = max(config.getint('InvalidationTime', 0), -1)
 
+        self.dump_methods = ('message', 'user', 'message_service', 'channel',
+                              'supergroup', 'chat', 'adminlog_event', 'media',
+                              'participants_delta', 'media', 'forward')
+
+        self._dump_callbacks = {method: set() for method in self.dump_methods}
+
         c.execute("SELECT name FROM sqlite_master "
                   "WHERE type='table' AND name='Version'")
 
@@ -230,8 +236,40 @@ class Dumper:
 
         Currently it performs no operation because this is the
         first version of the tables, in the future it should alter
-        tables or somehow transfer the data between what canged.
+        tables or somehow transfer the data between what changed.
         """
+
+    # TODO make these callback functions less repetitive.
+    # For the most friendly API, we should  have different methods for each
+    # kind of callback, but there could be a way to make this cleaner.
+    # Perhaps a dictionary mapping 'message' to the message callback set.
+
+    def add_callback(dump_method, callback):
+        """
+        Add the callback function to the set of callbacks for the given
+        dump method. dump_method should be a string, and callback should be a
+        function which takes one argument - a tuple which will be dumped into
+        the database. The list of valid dump methods is dumper.dump_methods.
+        If the dumper does not dump a row due to the invalidation_time, the
+        callback will still be called.
+        """
+        if dump_method not in self.dump_methods:
+            raise ValueError("Cannot attach callback to method {}. Available "
+                             "methods are {}".format(dump_method, self.dump_methods))
+
+        self.dump_methods[dump_method].add(callback)
+
+    def add_callback(dump_method, callback):
+        """
+        Remove the callback function from the set of callbacks for the given
+        dump method. Will raise KeyError if the callback is not in the set of
+        callbacks for that method
+        """
+        if dump_method not in self.dump_methods:
+            raise ValueError("Cannot remove callback from method {}. Available "
+                             "methods are {}".format(dump_method, self.dump_methods))
+
+        self.dump_methods[dump_method].remove(callback)
 
     def check_self_user(self, self_id):
         """
@@ -266,20 +304,23 @@ class Dumper:
         if not message.message and message.media:
             message.message = getattr(message.media, 'caption', '')
 
-        return self._insert('Message',
-                            (message.id,
-                             context_id,
-                             message.date.timestamp(),
-                             message.from_id,
-                             message.message,
-                             message.reply_to_msg_id,
-                             forward_id,
-                             message.post_author,
-                             message.views,
-                             media_id,
-                             utils.encode_msg_entities(message.entities),
-                             None)  # No MessageAction
-                           )
+        row = (message.id,
+               context_id,
+               message.date.timestamp(),
+               message.from_id,
+               message.message,
+               message.reply_to_msg_id,
+               forward_id,
+               message.post_author,
+               message.views,
+               media_id,
+               utils.encode_msg_entities(message.entities),
+               None)  # No MessageAction
+
+        for callback in self._dump_callbacks['message']:
+            callback(row)
+
+        return self._insert('Message', row)
 
     def dump_message_service(self, message, context_id, media_id):
         """Similar to self.dump_message, but for MessageAction's."""
@@ -291,20 +332,24 @@ class Dumper:
         del extra['_']  # We don't need to store the type, already have name
         sanitize_dict(extra)
         extra = json.dumps(extra)
-        return self._insert('Message',
-                            (message.id,
-                             context_id,
-                             message.date.timestamp(),
-                             message.from_id,
-                             extra,  # Message field contains the information
-                             message.reply_to_msg_id,
-                             None,  # No forward
-                             None,  # No author
-                             None,  # No views
-                             media_id,  # Might have e.g. a new chat Photo
-                             None,  # No entities
-                             name)
-                           )
+
+        row = (message.id,
+               context_id,
+               message.date.timestamp(),
+               message.from_id,
+               extra,  # Message field contains the information
+               message.reply_to_msg_id,
+               None,  # No forward
+               None,  # No author
+               None,  # No views
+               media_id,  # Might have e.g. a new chat Photo
+               None,  # No entities
+               name)
+
+        for callback in self._dump_callbacks['message_service']:
+            callback(row)
+
+        return self._insert('Message', row)
 
     def dump_admin_log_event(self, event, context_id, media_id1, media_id2):
         """Similar to self.dump_message_service but for channel actions."""
@@ -316,16 +361,20 @@ class Dumper:
         del extra['_']  # We don't need to store the type, already have name
         sanitize_dict(extra)
         extra = json.dumps(extra)
-        return self._insert('AdminLog',
-                            (event.id,
-                             context_id,
-                             event.date.timestamp(),
-                             event.user_id,
-                             media_id1,
-                             media_id2,
-                             name,
-                             extra)
-                           )
+
+        row = (event.id,
+               context_id,
+               event.date.timestamp(),
+               event.user_id,
+               media_id1,
+               media_id2,
+               name,
+               extra)
+
+        for callback in self._dump_callbacks['adminlog_event']:
+            callback(row)
+
+        return self._insert('AdminLog', row)
 
     def dump_user(self, user_full, photo_id, timestamp=None):
         """Dump a UserFull into the User table
@@ -342,7 +391,11 @@ class Dumper:
                   user_full.user.bot,
                   user_full.common_chats_count,
                   photo_id)
-        self._insert_if_valid_date('User', values, date_column=1,
+
+        for callback in self._dump_callbacks['user']:
+            callback(values)
+
+        return self._insert_if_valid_date('User', values, date_column=1,
                                    where=('ID', user_full.user.id))
 
     def dump_channel(self, channel_full, channel, photo_id, timestamp=None):
@@ -358,7 +411,11 @@ class Dumper:
                   channel.username,
                   photo_id,
                   channel_full.pinned_msg_id)
-        self._insert_if_valid_date('Channel', values, date_column=1,
+
+        for callback in self._dump_callbacks['channel']:
+            callback(values)
+
+        return self._insert_if_valid_date('Channel', values, date_column=1,
                                    where=('ID', get_peer_id(channel)))
 
     def dump_supergroup(self, supergroup_full, supergroup, photo_id,
@@ -375,6 +432,10 @@ class Dumper:
                   supergroup.username,
                   photo_id,
                   supergroup_full.pinned_msg_id)
+
+        for callback in self._dump_callbacks['supergroup']:
+            callback(values)
+
         return self._insert_if_valid_date('Supergroup', values, date_column=1,
                                           where=('ID', get_peer_id(supergroup)))
 
@@ -392,6 +453,10 @@ class Dumper:
                   chat.title,
                   migrated_to_id,
                   photo_id)
+
+        for callback in self._dump_callbacks['chat']:
+            callback(values)
+
         return self._insert_if_valid_date('Chat', values, date_column=1,
                                           where=('ID', get_peer_id(chat)))
 
@@ -422,12 +487,15 @@ class Dumper:
             added = ids - last_ids
             removed = last_ids - ids
 
-        c.execute("INSERT INTO ChatParticipants VALUES (?, ?, ?, ?)", (
-            context_id,
-            round(time.time()),
-            ','.join(str(x) for x in added),
-            ','.join(str(x) for x in removed)
-        ))
+        row = (context_id,
+               round(time.time()),
+               ','.join(str(x) for x in added),
+               ','.join(str(x) for x in removed))
+
+        for callback in self._dump_callbacks['participants_delta']:
+            callback(row)
+
+        c.execute("INSERT INTO ChatParticipants VALUES (?, ?, ?, ?)", row)
         return added, removed
 
     def dump_media(self, media, media_type=None):
@@ -571,6 +639,10 @@ class Dumper:
         if row['type']:
             # We'll say two files are the same if they point to the same
             # downloadable content (through local_id/volume_id/secret).
+
+            for callback in self._dump_callbacks['media']:
+                callback(row)
+
             c = self.conn.cursor()
             c.execute('SELECT ID FROM Media WHERE LocalID = ? '
                       'AND VolumeID = ? AND Secret = ?',
@@ -596,12 +668,16 @@ class Dumper:
         if not forward:
             return None
 
-        return self._insert('Forward',
-                            (None,  # Database will handle this
-                             forward.date.timestamp(),
-                             forward.from_id,
-                             forward.channel_post,
-                             forward.post_author))
+        row = (None,  # Database will handle this
+               forward.date.timestamp(),
+               forward.from_id,
+               forward.channel_post,
+               forward.post_author)
+
+        for callback in self._dump_callbacks['forward']:
+            callback(row)
+
+        return self._insert('Forward', row)
 
     def get_max_message_id(self, context_id):
         """
