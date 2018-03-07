@@ -211,16 +211,29 @@ class Downloader:
             sender_id=sender_id,
             type=media_subtype or 'unknown',
             name=self._get_name(context_id) or 'unknown',
-            sender_name=self._get_name(sender_id) or 'unknown'
+            sender_name=self._get_name(sender_id) or 'unknown',
+            filename=media_row[5]
         )
-        ext = mimetypes.guess_extension(media_row[4]) or '.bin'
-        if ext == '.jpe':
-            ext = '.jpg'  # Nobody uses .jpe for photos
 
-        name = None if media_subtype == 'photo' else media_row[5]
-        formatter['filename'] = name or date.strftime(
-            '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
-        )
+        # Documents might have a filename, which may have an extension. Use
+        # the extension from the filename if any (more accurate than mime).
+        ext = None
+        filename = media_row[5]
+        if filename:
+            filename, ext = os.path.splitext(filename)
+        else:
+            # No filename at all, set a sensible default filename
+            formatter['filename'] = date.strftime(
+                '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
+            )
+
+        # The saved media didn't have a filename and we set one. Detect ext.
+        if not ext:
+            ext = mimetypes.guess_extension(media_row[4]) or '.bin'
+            if ext == '.jpe':
+                ext = '.jpg'  # TODO Probably use a custom map for this
+
+        # Apply the date to the user format string and then replace the map
         filename = date.strftime(self.media_fmt).format_map(formatter)
         filename += '.{}{}'.format(media_id, ext)
         if os.path.isfile(filename):
