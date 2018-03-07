@@ -227,11 +227,10 @@ class Downloader:
                 '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
             )
 
-        # The saved media didn't have a filename and we set one. Detect ext.
+        # The saved media didn't have a filename and we set our own.
+        # Detect a sensible extension from the known mimetype.
         if not ext:
-            ext = mimetypes.guess_extension(media_row[4]) or '.bin'
-            if ext == '.jpe':
-                ext = '.jpg'  # TODO Probably use a custom map for this
+            ext = export_utils.get_extension(media_row[4])
 
         # Apply the date to the user format string and then replace the map
         filename = date.strftime(self.media_fmt).format_map(formatter)

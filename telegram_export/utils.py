@@ -1,6 +1,7 @@
 """Utility functions for telegram-export which aren't specific to one purpose"""
-from telethon_aio.tl import types
+import mimetypes
 
+from telethon_aio.tl import types
 
 ENTITY_TO_TEXT = {
     types.MessageEntityPre: 'pre',
@@ -12,6 +13,27 @@ ENTITY_TO_TEXT = {
 }
 
 TEXT_TO_ENTITY = {v: k for k, v in ENTITY_TO_TEXT.items()}
+
+# The mimetypes module has many extension for the same mimetype and it will
+# return the one that happens to be first (e.g. ".bat" for "text/plain").
+# This map contains a few common mimetypes and their most common extension.
+#
+# The following code can be use to find out which mimetypes have several ext:
+'''
+import mimetypes
+from collections import defaultdict
+d = defaultdict(list)
+for k, v in mimetypes.types_map.items():
+    d[v].append(k)
+
+d = {k: v for k, v in d.items() if len(v) > 1}
+'''
+COMMON_MIME_TO_EXTENSION = {
+    'text/plain': '.txt',  # To avoid ".bat"
+    'image/jpeg': '.jpg',  # To avoid ".jpe"
+    'image/bmp': '.bmp',  # To avoid ".dib"
+    'video/mp4': '.mp4',  # To avoid ".m4v"
+}
 
 
 def encode_msg_entities(entities):
@@ -93,6 +115,18 @@ def get_media_type(media):
         return 'chatphoto'
 
     return 'unknown'
+
+
+def get_extension(mime):
+    """
+    Returns the most common extension for the given mimetype, or '.bin' if
+    none can be found to indicate that it contains arbitrary binary data.
+    """
+    return (
+        COMMON_MIME_TO_EXTENSION.get(mime)
+        or mimetypes.guess_extension(mime)
+        or '.bin'
+    )
 
 
 def get_file_location(media):
