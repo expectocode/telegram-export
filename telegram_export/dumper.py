@@ -533,6 +533,9 @@ class Dumper:
                 row['local_id'] = doc.id
                 row['volume_id'] = doc.version
                 row['secret'] = doc.access_hash
+                for attr in doc.attributes:
+                    if isinstance(attr, types.DocumentAttributeFilename):
+                        row['name'] = attr.file_name
 
         elif isinstance(media, types.MessageMediaEmpty):
             row['type'] = 'empty'
