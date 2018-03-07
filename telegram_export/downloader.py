@@ -211,8 +211,7 @@ class Downloader:
             sender_id=sender_id,
             type=media_subtype or 'unknown',
             name=self._get_name(context_id) or 'unknown',
-            sender_name=self._get_name(sender_id) or 'unknown',
-            filename=media_row[5]
+            sender_name=self._get_name(sender_id) or 'unknown'
         )
 
         # Documents might have a filename, which may have an extension. Use
@@ -223,7 +222,7 @@ class Downloader:
             filename, ext = os.path.splitext(filename)
         else:
             # No filename at all, set a sensible default filename
-            formatter['filename'] = date.strftime(
+            filename = date.strftime(
                 '{}_%Y-%m-%d_%H-%M-%S'.format(formatter['type'])
             )
 
@@ -233,6 +232,7 @@ class Downloader:
             ext = export_utils.get_extension(media_row[4])
 
         # Apply the date to the user format string and then replace the map
+        formatter['filename'] = filename
         filename = date.strftime(self.media_fmt).format_map(formatter)
         filename += '.{}{}'.format(media_id, ext)
         if os.path.isfile(filename):
