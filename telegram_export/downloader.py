@@ -3,7 +3,6 @@ import asyncio
 import datetime
 import itertools
 import logging
-import mimetypes
 import os
 import time
 from collections import defaultdict
@@ -27,6 +26,13 @@ BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} " \
 
 QUEUE_TIMEOUT = 5
 DOWNLOAD_PART_SIZE = 256 * 1024
+
+# How long should we sleep between these requests? These numbers
+# should be tuned to adjust (n requests/time spent + flood time).
+USER_FULL_DELAY = 1.5
+CHAT_FULL_DELAY = 1.5
+MEDIA_DELAY = 3.0
+HISTORY_DELAY = 1.0
 
 
 class Downloader:
@@ -286,7 +292,7 @@ class Downloader:
                                        datetime.datetime.utcfromtimestamp(date),
                                        bar)
             queue.task_done()
-            await asyncio.sleep(max(1.5 - (time.time() - start), 0))
+            await asyncio.sleep(max(MEDIA_DELAY - (time.time() - start), 0))
 
     async def _user_consumer(self, queue, bar):
         while self._running:
@@ -296,7 +302,7 @@ class Downloader:
             ))
             queue.task_done()
             bar.update(1)
-            await asyncio.sleep(max(1.5 - (time.time() - start), 0))
+            await asyncio.sleep(max(USER_FULL_DELAY - (time.time() - start), 0))
 
     async def _chat_consumer(self, queue, bar):
         while self._running:
@@ -310,7 +316,7 @@ class Downloader:
                 ))
             queue.task_done()
             bar.update(1)
-            await asyncio.sleep(max(1.5 - (time.time() - start), 0))
+            await asyncio.sleep(max(CHAT_FULL_DELAY - (time.time() - start), 0))
 
     def enqueue_entities(self, entities):
         """
@@ -506,8 +512,10 @@ class Downloader:
                     else:
                         log_req = None
 
-                # 30 request in 30 seconds (sleep a second *between* requests)
-                await asyncio.sleep(max(1 - (time.time() - start), 0))
+                # We need to sleep for HISTORY_DELAY but we have already spent
+                # some of it invoking (so subtract said delta from the delay).
+                await asyncio.sleep(
+                    max(HISTORY_DELAY - (time.time() - start), 0))
 
             # Message loop complete, wait for the queues to empty
             msg_bar.n = msg_bar.total
@@ -524,7 +532,8 @@ class Downloader:
                 if result.events:
                     log_req.max_id = self._dump_admin_log(result.events,
                                                           target)
-                    await asyncio.sleep(max(1 - (time.time() - start), 0))
+                    await asyncio.sleep(max(
+                        HISTORY_DELAY - (time.time() - start), 0))
                 else:
                     log_req = None
 
