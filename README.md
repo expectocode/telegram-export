@@ -20,8 +20,8 @@ these is `pip3 install --user --upgrade -r requirements.txt` or `pip install
 You may also want to install `cryptg` with the same method for a speed boost
 when downloading media. Telegram requires a lot of encryption and decryption
 and this can make downloading files especially slow unless using a nice fast
-library like cryptg. One user reported a [speed increase of 1100% ](https://
-github.com/expectocode/telegram-export/issues/29).
+library like cryptg. One user reported a
+[speed increase of 1100%](https://github.com/expectocode/telegram-export/issues/29).
 
 With these installed, you can simply `git clone` this repository and go onto
 'Usage'.
