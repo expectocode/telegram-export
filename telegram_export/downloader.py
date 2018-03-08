@@ -63,6 +63,11 @@ class Downloader:
         # in memory for every dump, that is, {peer_id: display}.
         self._displays = {}
 
+        # This field keeps track of the download in progress if any, so that
+        # partially downloaded files can be deleted. Only one file can be
+        # downloaded at any given time, so using a set here makes no sense.
+        self._incomplete_download = None
+
         # We're gonna need a few queues if we want to do things concurrently.
         # None values should be inserted to notify that the dump has finished.
         self._media_queue = asyncio.Queue()
@@ -277,11 +282,13 @@ class Downloader:
         if media_row[6] is not None:
             bar.total += media_row[6]
 
+        self._incomplete_download = filename
         await self.client.download_file(
             location, file=filename, file_size=media_row[6],
             part_size_kb=DOWNLOAD_PART_SIZE // 1024,
             progress_callback=progress
         )
+        self._incomplete_download = None
 
     async def _media_consumer(self, queue, bar):
         # TODO Delete half-downloaded files
@@ -378,6 +385,7 @@ class Downloader:
         Starts the dump with the given target ID.
         """
         self._running = True
+        self._incomplete_download = None
         target_in = await self.client.get_input_entity(target_id)
         target = await self.client.get_entity(target_in)
         target_id = utils.get_peer_id(target)
@@ -568,6 +576,11 @@ class Downloader:
 
             if entities or media:
                 self.dumper.commit()
+
+            # Delete partially-downloaded files
+            if (self._incomplete_download is not None
+                    and os.path.isfile(self._incomplete_download)):
+                os.remove(self._incomplete_download)
 
     async def download_past_media(self, dumper, target_id):
         """
