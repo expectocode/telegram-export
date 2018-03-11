@@ -21,8 +21,10 @@ SessionName = exporter
 [Dumper]
 
 # Output folder, where the database, media, and cache files will be stored.
-# You must set this!
-OutputDirectory = NOTSET
+# You can leave this as . to save to your current directory (when you call the
+# program), or put a path like ~/Downloads or /home/username/tg-export/. It is
+# usually a better idea to set a specific directory here.
+OutputDirectory = .
 
 # Either Whitelist or Blacklist should be present, not both. If both are
 # present, only Whitelist will be used.

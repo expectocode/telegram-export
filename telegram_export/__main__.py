@@ -87,10 +87,9 @@ def load_config(filename):
     telethon_logger.setLevel(getattr(logging, level))
     telethon_logger.addHandler(handler)
 
-    # Require the user to set a config dir
-    if config['Dumper']['OutputDirectory'] == 'NOTSET':
-        logger.error("You must set an output dir!")
-        exit(1)
+    # Convert relative paths and paths with ~
+    config['Dumper']['OutputDirectory'] = os.path.abspath(os.path.expanduser(
+        config['Dumper']['OutputDirectory']))
     os.makedirs(config['Dumper']['OutputDirectory'], exist_ok=True)
 
     # Convert minutes to seconds

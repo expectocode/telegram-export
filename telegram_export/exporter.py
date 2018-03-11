@@ -62,6 +62,7 @@ class Exporter:
 
     async def start(self):
         """Perform a dump of the dialogs we've been told to act on"""
+        self.logger.info("Saving to %s", self.dumper.config['OutputDirectory'])
         self.dumper.check_self_user((await self.client.get_me(input_peer=True)).user_id)
         if 'Whitelist' in self.dumper.config:
             # Only whitelist, don't even get the dialogs
@@ -85,6 +86,7 @@ class Exporter:
         Download past media (media we saw but didn't download before) of the
         dialogs we've been told to act on
         """
+        self.logger.info("Saving to %s", self.dumper.config['OutputDirectory'])
         self.dumper.check_self_user((await self.client.get_me(input_peer=True)).user_id)
 
         if 'Whitelist' in self.dumper.config:
