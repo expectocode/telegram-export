@@ -12,6 +12,7 @@ import re
 from contextlib import suppress
 
 import tqdm
+import appdirs
 from telethon_aio import TelegramClient, utils
 
 from telegram_export.dumper import Dumper
@@ -22,8 +23,6 @@ logger = logging.getLogger('')  # Root logger
 
 
 NO_USERNAME = '<no username>'
-# Convert '' from `python3 telegram_export.py` into '.'
-SCRIPT_DIR = os.path.dirname(__file__) or '.'
 
 
 class TqdmLoggingHandler(logging.Handler):
@@ -43,8 +42,16 @@ def load_config(filename):
     """Load config from the specified file and return the parsed config"""
     # Get a path to the file. If it was specified, it should be fine.
     # If it was not specified, assume it's config.ini in the script's dir.
+    config_dir = appdirs.user_config_dir("telegram-export")
+
     if not filename:
-        filename = os.path.join(SCRIPT_DIR, 'config.ini')
+        filename = os.path.join(config_dir, 'config.ini')
+
+    if not os.path.isfile(filename):
+        logger.warning("No config file! Make one in {} and find an example "
+                       "config at https://github.com/expectocode/"
+                       "telegram-export/blob/master/config.ini.example".format(filename))
+        exit(1)
 
     defaults = {
         'SessionName': 'exporter',
@@ -79,9 +86,10 @@ def load_config(filename):
     telethon_logger.setLevel(getattr(logging, level))
     telethon_logger.addHandler(handler)
 
-    # Convert default output dir '.' to script dir
-    if config['Dumper']['OutputDirectory'] == '.':
-        config['Dumper']['OutputDirectory'] = SCRIPT_DIR
+    # Require the user to set a config dir
+    if config['Dumper']['OutputDirectory'] == 'NOTSET':
+        logger.error("You must set an output dir!")
+        exit(1)
     os.makedirs(config['Dumper']['OutputDirectory'], exist_ok=True)
 
     # Convert minutes to seconds

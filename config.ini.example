@@ -20,9 +20,9 @@ SessionName = exporter
 
 [Dumper]
 
-# Output folder, where the DB, media, and cache files will be stored.
-# Leave as . to dump things in the folder with the script, or put an absolute path.
-OutputDirectory = .
+# Output folder, where the database, media, and cache files will be stored.
+# You must set this!
+OutputDirectory = NOTSET
 
 # Either Whitelist or Blacklist should be present, not both. If both are
 # present, only Whitelist will be used.
@@ -33,7 +33,7 @@ OutputDirectory = .
 # to wait for lots of dialogs you don't care about to be downloaded. You can
 # get a list of dialogs and their associated IDs by running
 # `telegram-export.py --list-dialogs`
-Whitelist = example, username : My friend,
+Whitelist = example, username : My friend
 			-1001132836449: telegram-export group
 
 ############################# 'Advanced Options' #############################
