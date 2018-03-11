@@ -6,20 +6,13 @@ into a database (and display the saved data).
 
 **Database schema:**
 
-.. figure:: /schema.png
+.. figure:: https://user-images.githubusercontent.com/15344581/37249394-5e36dfa8-24de-11e8-9bde-1a986b668d4d.png
    :alt: Schema image
 
-   Schema image
+Usage
+=====
 
-Installation
-============
-
-This project depends on
-`Telethon <https://github.com/LonamiWebs/Telethon/tree/asyncio>`__'s
-asyncio branch and `tqdm <https://github.com/tqdm/tqdm>`__. The easiest
-way to install these is
-``pip3 install --user --upgrade -r requirements.txt`` or
-``pip install --upgrade --user tqdm telethon-aio``.
+Install with ``pip3 install --user telegram_export``.
 
 You may also want to install ``cryptg`` with the same method for a speed
 boost when downloading media. Telegram requires a lot of encryption and
@@ -28,14 +21,9 @@ using a nice fast library like cryptg. One user reported a `speed
 increase of
 1100% <https://%20github.com/expectocode/telegram-export/issues/29>`__.
 
-With these installed, you can simply ``git clone`` this repository and
-go onto 'Usage'.
-
-Usage
-=====
-
-First, copy config.ini.example to config.ini and edit some values. To
-write your whitelist, you may want to refer to the output of
+Then, copy config.ini.example (from GitHub) to ~/.config/telegram-export/config.ini
+and edit some values. You'll probably need to create this folder. To write your
+config whitelist, you may want to refer to the output of
 ``./telegram-export --list-dialogs`` to get dialog IDs or
 ``./telegram-export --search <query>`` to filter the results. Then run
 ``./telegram-export`` and allow it to dump data.
@@ -109,3 +97,17 @@ hash to use it, and why one from Telegram Desktop will work. Since
 normal clients need to download messages, media, users etc to display
 them in-app, telegram-export can do the same, and save them into a nice
 database.
+
+Installation from source
+========================
+
+This project depends on
+`Telethon <https://github.com/LonamiWebs/Telethon/tree/asyncio>`__'s
+asyncio branch and `tqdm <https://github.com/tqdm/tqdm>`__. The easiest
+way to install these is
+``pip3 install --user --upgrade -r requirements.txt`` or
+``pip install --upgrade --user tqdm telethon-aio``.
+
+
+With these installed, you can simply ``git clone`` this repository and
+go onto 'Usage'.

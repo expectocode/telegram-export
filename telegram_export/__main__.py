@@ -50,7 +50,8 @@ def load_config(filename):
     if not os.path.isfile(filename):
         logger.warning("No config file! Make one in {} and find an example "
                        "config at https://github.com/expectocode/"
-                       "telegram-export/blob/master/config.ini.example".format(filename))
+                       "telegram-export/blob/master/config.ini.example."
+                       "Alternatively, use --config-file FILE".format(filename))
         exit(1)
 
     defaults = {

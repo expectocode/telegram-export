@@ -21,8 +21,8 @@ setup(
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: MPL License',
-        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)',
+        'Programming Language :: Python :: 3'
     ],
     keywords='Telegram messaging database',
     packages=find_packages(),
