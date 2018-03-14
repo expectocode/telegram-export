@@ -27,11 +27,7 @@ setup(
     keywords='Telegram messaging database',
     packages=find_packages(),
     install_requires=['tqdm', 'telethon-aio', 'appdirs'],
-    entry_points={  # Optional
-        'console_scripts': [
-            'telegram-export=telegram_export:main',
-        ],
-    },
+    scripts=['bin/telegram-export'],
     project_urls={
         'Bug Reports': 'https://github.com/expectocode/telegram-export/issues',
         'Source': 'https://github.com/expectocode/telegram-export'

@@ -114,7 +114,7 @@ def load_config(filename):
 
 def parse_args():
     """Parse command-line arguments to the script"""
-    parser = argparse.ArgumentParser(description="export Telegram data")
+    parser = argparse.ArgumentParser(description="Download Telegram data (users, chats, messages, and media) into a database (and display the saved data)")
     parser.add_argument('--list-dialogs', action='store_true',
                         help='list dialogs and exit')
 

@@ -9,24 +9,69 @@ into a database (and display the saved data).
 .. figure:: https://user-images.githubusercontent.com/15344581/37249394-5e36dfa8-24de-11e8-9bde-1a986b668d4d.png
    :alt: Schema image
 
-Usage
-=====
+Installation
+============
 
-Install with ``pip3 install --user telegram_export``.
+The simplest way is to run ``sudo pip3 install --upgrade telegram_export``,
+after which telegram-export should simply be available as a command: ``telegram-export``
+in the terminal. That's it!
+
+If you don't like using ``sudo pip``, you can use ``pip3 install --user telegram_export``,
+but you'll have to add something like ``~/.local/bin/`` to your $PATH to get
+the command available. If you don't want to add to PATH, you can also use
+``python3 -m telegram_export`` anywhere instead of ``telegram-export``. You'll
+have a similar issue if you're using a virtualenv, but if you're using those
+you probably know what you're doing anyway :)
+
+Slow downloads?
+---------------
 
 You may also want to install ``cryptg`` with the same method for a speed
 boost when downloading media. Telegram requires a lot of encryption and
 decryption and this can make downloading files especially slow unless
 using a nice fast library like cryptg. One user reported a `speed
 increase of
-1100% <https://%20github.com/expectocode/telegram-export/issues/29>`__.
+1100% <https://github.com/expectocode/telegram-export/issues/29>`__.
 
-Then, copy config.ini.example (from GitHub) to ~/.config/telegram-export/config.ini
+Usage
+=====
+
+First, copy config.ini.example (from GitHub) to ``~/.config/telegram-export/config.ini``
 and edit some values. You'll probably need to create this folder. To write your
 config whitelist, you may want to refer to the output of
-``./telegram-export --list-dialogs`` to get dialog IDs or
-``./telegram-export --search <query>`` to filter the results. Then run
-``./telegram-export`` and allow it to dump data.
+``telegram-export --list-dialogs`` to get dialog IDs or
+``telegram-export --search <query>`` to filter the results.
+
+Then run ``telegram-export`` and allow it to dump data.
+
+Full option listing:
+
+.. code::
+
+    usage: __main__.py [-h] [--list-dialogs] [--search-dialogs SEARCH_STRING]
+                       [--config-file CONFIG_FILE] [--contexts CONTEXTS]
+                       [--format {text,html}] [--download-past-media]
+
+    Download Telegram data (users, chats, messages, and media) into a database
+    (and display the saved data)
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      --list-dialogs        list dialogs and exit
+      --search-dialogs SEARCH_STRING
+                            like --list-dialogs but searches for a dialog by
+                            name/username/phone
+      --config-file CONFIG_FILE
+                            specify a config file. Default config.ini
+      --contexts CONTEXTS   list of contexts to act on eg --contexts=12345,
+                            @username (see example config whitelist for full
+                            rules). Overrides whitelist/blacklist.
+      --format {text,html}  formats the dumped messages with the specified
+                            formatter and exits.
+      --download-past-media
+                            download past media instead of dumping new data (files
+                            that were seen before but not downloaded).
+
 
 telegram-export vs `telegram-history-dump <https://github.com/tvdstaaij/telegram-history-dump>`__
 =================================================================================================
@@ -35,8 +80,8 @@ telegram-export vs `telegram-history-dump <https://github.com/tvdstaaij/telegram
 
 -  SQLite instead of jsonlines allows for far more powerful queries and
    better efficiency but loses compatibility with text-manipulating UNIX
-   tools as the data is not stored as text, or even more powerful tools
-   like ```jq`` <https://stedolan.github.io/jq/>`__.
+   tools as the data is not stored as text (or even more powerful tools
+   like ```jq`` <https://stedolan.github.io/jq/>`__).
 
 -  export's stored data is less complicated than dump's json dumps
 
@@ -79,8 +124,10 @@ telegram-export vs `telegram-history-dump <https://github.com/tvdstaaij/telegram
 Limitations
 ===========
 
--  Currently sort of unfinished. It dumps things, but the schema may
-   change and we won't support old schema transitions.
+-  Still being worked on. It dumps things, but the schema may change and we
+   won't support old schema transitions.
+
+-  Relies on `Telethon <https://github.com/LonamiWebs/Telethon>`, which is still pre-1.0.
 
 -  Certain information is not dumped for simplicity's sake. For example,
    edited messages won't be re-downloaded and there is currently no
@@ -98,16 +145,12 @@ normal clients need to download messages, media, users etc to display
 them in-app, telegram-export can do the same, and save them into a nice
 database.
 
+So no, it's not really a bot, but it does use the same technology as
+**userbots** in order to work. As far as we know, it won't get you banned from
+using Telegram or anything like that.
+
 Installation from source
 ========================
 
-This project depends on
-`Telethon <https://github.com/LonamiWebs/Telethon/tree/asyncio>`__'s
-asyncio branch and `tqdm <https://github.com/tqdm/tqdm>`__. The easiest
-way to install these is
-``pip3 install --user --upgrade -r requirements.txt`` or
-``pip install --upgrade --user tqdm telethon-aio``.
-
-
-With these installed, you can simply ``git clone`` this repository and
-go onto 'Usage'.
+``git clone`` this repository, then ``python3 setup.py install``. You should
+also read through the `Installation`_ section for related notes.
