@@ -6,7 +6,7 @@ into a database (and display the saved data).
 
 **Database schema:**
 
-.. figure:: https://user-images.githubusercontent.com/15344581/37249394-5e36dfa8-24de-11e8-9bde-1a986b668d4d.png
+.. figure:: https://user-images.githubusercontent.com/15344581/37377008-44c93d20-271f-11e8-8170-5d6071a21b8f.png
    :alt: Schema image
 
 Installation
