@@ -81,15 +81,15 @@ telegram-export vs `telegram-history-dump <https://github.com/tvdstaaij/telegram
 -  SQLite instead of jsonlines allows for far more powerful queries and
    better efficiency but loses compatibility with text-manipulating UNIX
    tools as the data is not stored as text (or even more powerful tools
-   like ```jq`` <https://stedolan.github.io/jq/>`__).
+   like `jq <https://stedolan.github.io/jq/>`__).
 
 -  export's stored data is less complicated than dump's json dumps
 
 -  Support for saving the history of a person or other dialog, so you
    can see e.g. what their name was over time.
 
--  Using ```telethon`` <https://github.com/LonamiWebs/Telethon>`__
-   instead of ```tg-cli`` <https://github.com/vysheng/tg>`__ allows
+-  Using `telethon <https://github.com/LonamiWebs/Telethon>`__
+   instead of `tg-cli <https://github.com/vysheng/tg>`__ allows
    support for newer Telegram features like pinned messages, admin logs,
    user bios, first-class support for supergroups and avoids the
    ``tg-cli`` bug which made dumping channels impossible, as well as
