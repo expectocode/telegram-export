@@ -1,7 +1,7 @@
 """Utility functions for telegram-export which aren't specific to one purpose"""
 import mimetypes
 
-from telethon_aio.tl import types
+from telethon.tl import types
 
 ENTITY_TO_TEXT = {
     types.MessageEntityPre: 'pre',

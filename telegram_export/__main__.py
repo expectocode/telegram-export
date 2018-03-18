@@ -13,7 +13,7 @@ from contextlib import suppress
 
 import tqdm
 import appdirs
-from telethon_aio import TelegramClient, utils
+from telethon import TelegramClient, utils
 
 from telegram_export.dumper import Dumper
 from telegram_export.exporter import Exporter
