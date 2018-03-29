@@ -15,6 +15,6 @@ class NlpFormatter(BaseFormatter):
 
         for message in self.get_messages_from_context(context_id,
                                                       order='ASC'):
-            if not message.text:
+            if not message.text or message.service_action is not None:
                 continue
             print(message.text)
