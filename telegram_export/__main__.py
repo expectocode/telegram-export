@@ -131,9 +131,16 @@ def parse_args():
                              '@username (see example config whitelist for '
                              'full rules). Overrides whitelist/blacklist.')
 
+    parser.add_argument('--format-contexts', type=int, nargs='+',
+                        help='list of contexts to format eg --format-contexts='
+                             '12345 -1006789. Only ContextIDs are accepted, '
+                             'not usernames or phone numbers.')
+
     parser.add_argument('--format', type=str,
                         help='formats the dumped messages with the specified '
-                             'formatter and exits.', choices=NAME_TO_FORMATTER)
+                             'formatter and exits. You probably want to use '
+                             'this in conjunction with --format-contexts.',
+                             choices=NAME_TO_FORMATTER)
 
     parser.add_argument('--download-past-media', action='store_true',
                         help='download past media instead of dumping '
@@ -244,7 +251,7 @@ async def main():
 
     if args.format:
         formatter = NAME_TO_FORMATTER[args.format](dumper.conn)
-        fmt_contexts = args.contexts or formatter.iter_context_ids()
+        fmt_contexts = args.format_contexts or formatter.iter_context_ids()
         for cid in fmt_contexts:
             formatter.format(cid, config['Dumper']['OutputDirectory'])
         return
