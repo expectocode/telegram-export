@@ -89,19 +89,30 @@ class Downloader:
         """
         Dumps the full entity into the Dumper, also enqueuing their profile
         photo if any so it can be downloaded later by a different coroutine.
+        Supply None as the photo_id if self.types is empty or 'chatphoto' is
+        not in self.types
         """
         if isinstance(entity, types.UserFull):
-            photo_id = self.dumper.dump_media(entity.profile_photo)
+            if not self.types or 'chatphoto' in self.types:
+                photo_id = self.dumper.dump_media(entity.profile_photo)
+            else:
+                photo_id = None
             self.enqueue_photo(entity.profile_photo, photo_id, entity.user)
             self.dumper.dump_user(entity, photo_id=photo_id)
 
         elif isinstance(entity, types.Chat):
-            photo_id = self.dumper.dump_media(entity.photo)
+            if not self.types or 'chatphoto' in self.types:
+                photo_id = self.dumper.dump_media(entity.photo)
+            else:
+                photo_id = None
             self.enqueue_photo(entity.photo, photo_id, entity)
             self.dumper.dump_chat(entity, photo_id=photo_id)
 
         elif isinstance(entity, types.messages.ChatFull):
-            photo_id = self.dumper.dump_media(entity.full_chat.chat_photo)
+            if not self.types or 'chatphoto' in self.types:
+                photo_id = self.dumper.dump_media(entity.full_chat.chat_photo)
+            else:
+                photo_id = None
             chat = next(
                 x for x in entity.chats if x.id == entity.full_chat.id
             )
