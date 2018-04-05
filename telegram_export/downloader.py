@@ -432,8 +432,12 @@ class Downloader:
                 min_id=0,
                 hash=0
             )
-            if isinstance(target_in,
-                          (types.InputPeerChat, types.InputPeerChannel)):
+
+            admin = (isinstance(target_in, types.InputPeerChat) or (
+                isinstance(target, types.Channel)
+                and target.admin_rights is not None
+            ))
+            if admin:
                 try:
                     __log__.info('Getting participants...')
                     participants = await self.client.get_participants(target_in)
@@ -443,7 +447,10 @@ class Downloader:
                     __log__.info('Saved %d new members, %d left the chat.',
                                  len(added), len(removed))
                 except ChatAdminRequiredError:
-                    __log__.info('Getting participants aborted (not admin).')
+                    __log__.info('Getting participants aborted (admin '
+                                 'rights revoked while getting them).')
+            else:
+                __log__.info('Not getting participants since we are not admin.')
 
             req.offset_id, req.offset_date, stop_at = self.dumper.get_resume(
                 target_id
