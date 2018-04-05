@@ -83,7 +83,7 @@ def load_config(filename):
     logger.setLevel(getattr(logging, level))
     # Library loggers
     level = config['Dumper'].get('LibraryLogLevel').upper()
-    telethon_logger = logging.getLogger('telethon_aio')
+    telethon_logger = logging.getLogger('telethon')
     telethon_logger.setLevel(getattr(logging, level))
     telethon_logger.addHandler(handler)
 
