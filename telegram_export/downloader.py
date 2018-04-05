@@ -435,7 +435,7 @@ class Downloader:
 
             admin = (isinstance(target_in, types.InputPeerChat) or (
                 isinstance(target, types.Channel)
-                and target.admin_rights is not None
+                and (target.megagroup or target.admin_rights is not None)
             ))
             if admin:
                 try:
