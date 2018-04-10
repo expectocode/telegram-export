@@ -509,7 +509,7 @@ class Downloader:
                 # the highest ID ("closest" bound we need to reach), stop.
                 if count < req.limit or req.offset_id <= stop_at:
                     __log__.debug('Received less messages than limit, done.')
-                    max_id = self.dumper.get_max_message_id(target_id)
+                    max_id = self.dumper.get_max_message_id(target_id) or 0 # can't have NULL
                     self.dumper.save_resume(target_id, stop_at=max_id)
                     break
 
