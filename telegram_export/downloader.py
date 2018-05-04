@@ -200,16 +200,16 @@ class Downloader:
                                       row[1] or '').strip()
         elif kind == types.PeerChat:
             row = c.execute('SELECT Title FROM Chat '
-                            'WHERE ID ?', (peer_id,)).fetchone()
+                            'WHERE ID = ?', (peer_id,)).fetchone()
             if row:
                 return row[0]
         elif kind == types.PeerChannel:
             row = c.execute('SELECT Title FROM Channel '
-                            'WHERE ID ?', (peer_id,)).fetchone()
+                            'WHERE ID = ?', (peer_id,)).fetchone()
             if row:
                 return row[0]
             row = c.execute('SELECT Title FROM Supergroup '
-                            'WHERE ID ?', (peer_id,)).fetchone()
+                            'WHERE ID = ?', (peer_id,)).fetchone()
             if row:
                 return row[0]
         return ''
@@ -627,7 +627,7 @@ class Downloader:
                 media_id=msg_row[3],
                 context_id=target_id,
                 sender_id=msg_row[2],
-                date=msg_row[1],
+                date=datetime.datetime.utcfromtimestamp(msg_row[1]),
                 bar=bar
             )
             msg_row = msg_cursor.fetchone()
