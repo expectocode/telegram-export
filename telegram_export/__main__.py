@@ -260,11 +260,11 @@ async def main():
         config['Dumper']['OutputDirectory'],
         config['TelegramAPI']['SessionName']
     )
-    client = await TelegramClient(
+    client = await (TelegramClient(
         absolute_session_name,
         config['TelegramAPI']['ApiId'],
         config['TelegramAPI']['ApiHash']
-    ).start(config['TelegramAPI']['PhoneNumber'])
+    ).start(config['TelegramAPI']['PhoneNumber']))
 
     if args.list_dialogs or args.search_string:
         return await list_or_search_dialogs(args, client)
