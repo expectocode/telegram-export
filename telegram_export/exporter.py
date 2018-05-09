@@ -1,13 +1,15 @@
 """A class to iterate through dialogs and dump them, or save past media"""
 
-import re
 import logging
+import re
 
+from async_generator import yield_, async_generator
 from telethon import utils
 
 from .downloader import Downloader
 
 
+@async_generator
 async def entities_from_str(client, string):
     """Helper function to load entities from the config file"""
     for who in string.split(','):
@@ -15,11 +17,12 @@ async def entities_from_str(client, string):
             continue
         who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
         if re.match(r'[^+]-?\d+', who):
-            yield await client.get_input_entity(int(who))
+            yield_(await client.get_input_entity(int(who)))
         else:
-            yield await client.get_input_entity(who)
+            yield_(await client.get_input_entity(who))
 
 
+@async_generator
 async def get_entities_iter(mode, in_list, client):
     """
     Get a generator of entities to act on given a mode ('blacklist',
@@ -31,7 +34,7 @@ async def get_entities_iter(mode, in_list, client):
     if mode == 'whitelist':
         assert client is not None
         async for ent in entities_from_str(client, in_list):
-            yield ent
+            yield_(ent)
     if mode == 'blacklist':
         assert client is not None
         blacklist = entities_from_str(client, in_list)
@@ -41,7 +44,7 @@ async def get_entities_iter(mode, in_list, client):
         # TODO Should this get_dialogs call be cached? How?
         for dialog in await client.get_dialogs(limit=None):
             if utils.get_peer_id(dialog.entity) not in avoid:
-                yield dialog.entity
+                yield_(dialog.entity)
         return
 
 

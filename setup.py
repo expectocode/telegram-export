@@ -11,7 +11,7 @@ with open("README.rst", "r") as readme:
 
 setup(
     name='telegram-export',
-    version='0.1.4',
+    version='0.1.4.1',
     description='A tool to download Telegram data (users, chats, messages, '
                 'and media) into a database (and display the saved data).',
     long_description=desc,
@@ -26,7 +26,10 @@ setup(
     ],
     keywords='Telegram messaging database',
     packages=find_packages(),
-    install_requires=['tqdm', 'telethon-aio', 'appdirs'],
+    install_requires=[
+        'tqdm', 'telethon-aio', 'appdirs',
+        'async_generator'  # Python 3.5 async gen support
+    ],
     scripts=['bin/telegram-export'],
     project_urls={
         'Bug Reports': 'https://github.com/expectocode/telegram-export/issues',
