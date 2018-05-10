@@ -17,9 +17,9 @@ async def entities_from_str(client, string):
             continue
         who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
         if re.match(r'[^+]-?\d+', who):
-            yield_(await client.get_input_entity(int(who)))
+            await yield_(await client.get_input_entity(int(who)))
         else:
-            yield_(await client.get_input_entity(who))
+            await yield_(await client.get_input_entity(who))
 
 
 @async_generator
@@ -34,7 +34,7 @@ async def get_entities_iter(mode, in_list, client):
     if mode == 'whitelist':
         assert client is not None
         async for ent in entities_from_str(client, in_list):
-            yield_(ent)
+            await yield_(ent)
     if mode == 'blacklist':
         assert client is not None
         blacklist = entities_from_str(client, in_list)
@@ -44,7 +44,7 @@ async def get_entities_iter(mode, in_list, client):
         # TODO Should this get_dialogs call be cached? How?
         for dialog in await client.get_dialogs(limit=None):
             if utils.get_peer_id(dialog.entity) not in avoid:
-                yield_(dialog.entity)
+                await yield_(dialog.entity)
         return
 
 
