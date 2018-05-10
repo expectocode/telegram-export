@@ -1,3 +1,4 @@
+import asyncio
 import configparser
 import random
 import shutil
@@ -7,6 +8,9 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import utils
+from downloader import Downloader
+from dumper import Dumper
 from telethon import TelegramClient, utils as tl_utils
 from telethon.errors import (
     PhoneNumberOccupiedError, SessionPasswordNeededError
@@ -14,9 +18,6 @@ from telethon.errors import (
 from telethon.extensions import markdown
 from telethon.tl import functions, types
 
-import utils
-from downloader import Downloader
-from dumper import Dumper
 from formatters import BaseFormatter
 
 # Configuration as to which tests to run
@@ -111,7 +112,8 @@ class TestDumpAll(unittest.TestCase):
         )
 
         self.client(functions.messages.DeleteHistoryRequest('me', 0))
-        downloader = Downloader(self.client, self.dumper_config, dumper)
+        downloader = Downloader(self.client, self.dumper_config, dumper,
+                                loop=asyncio.get_event_loop())
 
         which = 1
         for amount, what in actions:

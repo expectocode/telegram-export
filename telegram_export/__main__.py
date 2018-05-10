@@ -237,7 +237,7 @@ async def list_or_search_dialogs(args, client):
     client.disconnect()
 
 
-async def main():
+async def main(loop):
     """
     The main telegram-export program. Goes through the
     configured dialogs and dumps them into the database.
@@ -263,13 +263,14 @@ async def main():
     client = await (TelegramClient(
         absolute_session_name,
         config['TelegramAPI']['ApiId'],
-        config['TelegramAPI']['ApiHash']
+        config['TelegramAPI']['ApiHash'],
+        loop=loop
     ).start(config['TelegramAPI']['PhoneNumber']))
 
     if args.list_dialogs or args.search_string:
         return await list_or_search_dialogs(args, client)
 
-    exporter = Exporter(client, config, dumper)
+    exporter = Exporter(client, config, dumper, loop)
 
     try:
         if args.download_past_media:
@@ -291,7 +292,7 @@ async def main():
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     try:
-        ret = loop.run_until_complete(main()) or 0
+        ret = loop.run_until_complete(main(loop)) or 0
     except KeyboardInterrupt:
         ret = 1
     for task in asyncio.Task.all_tasks():

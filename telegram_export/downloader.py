@@ -40,8 +40,9 @@ class Downloader:
     Download dialogs and their associated data, and dump them.
     Make Telegram API requests and sleep for the appropriate time.
     """
-    def __init__(self, client, config, dumper):
+    def __init__(self, client, config, dumper, loop):
         self.client = client
+        self.loop = loop or asyncio.get_event_loop()
         self.max_size = config.getint('MaxSize')
         self.types = {x.strip().lower()
                       for x in (config.get('MediaWhitelist') or '').split(',')
@@ -310,7 +311,8 @@ class Downloader:
                                        datetime.datetime.utcfromtimestamp(date),
                                        bar)
             queue.task_done()
-            await asyncio.sleep(max(MEDIA_DELAY - (time.time() - start), 0))
+            await asyncio.sleep(max(MEDIA_DELAY - (time.time() - start), 0),
+                                loop=self.loop)
 
     async def _user_consumer(self, queue, bar):
         while self._running:
@@ -320,7 +322,8 @@ class Downloader:
             ))
             queue.task_done()
             bar.update(1)
-            await asyncio.sleep(max(USER_FULL_DELAY - (time.time() - start), 0))
+            await asyncio.sleep(max(USER_FULL_DELAY - (time.time() - start), 0),
+                                loop=self.loop)
 
     async def _chat_consumer(self, queue, bar):
         while self._running:
@@ -334,7 +337,8 @@ class Downloader:
                 ))
             queue.task_done()
             bar.update(1)
-            await asyncio.sleep(max(CHAT_FULL_DELAY - (time.time() - start), 0))
+            await asyncio.sleep(max(CHAT_FULL_DELAY - (time.time() - start), 0),
+                                loop=self.loop)
 
     def enqueue_entities(self, entities):
         """
@@ -412,9 +416,13 @@ class Downloader:
                             total=0, postfix={'chat': chat_name})
         # Divisor is 1000 not 1024 since tqdm puts a K not a Ki
 
-        asyncio.ensure_future(self._user_consumer(self._user_queue, ent_bar))
-        asyncio.ensure_future(self._chat_consumer(self._chat_queue, ent_bar))
-        asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar))
+        asyncio.ensure_future(self._user_consumer(self._user_queue, ent_bar),
+                              loop=self.loop)
+        asyncio.ensure_future(self._chat_consumer(self._chat_queue, ent_bar),
+                              loop=self.loop)
+        asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar),
+                              loop=self.loop)
+
         self.enqueue_entities(self.dumper.iter_resume_entities(target_id))
         for mid, sender_id, date in self.dumper.iter_resume_media(target_id):
             self.enqueue_media(mid, target_id, sender_id, date)
@@ -541,7 +549,9 @@ class Downloader:
                 # We need to sleep for HISTORY_DELAY but we have already spent
                 # some of it invoking (so subtract said delta from the delay).
                 await asyncio.sleep(
-                    max(HISTORY_DELAY - (time.time() - start), 0))
+                    max(HISTORY_DELAY - (time.time() - start), 0),
+                    loop=self.loop
+                )
 
             # Message loop complete, wait for the queues to empty
             msg_bar.n = msg_bar.total
@@ -559,7 +569,9 @@ class Downloader:
                     log_req.max_id = self._dump_admin_log(result.events,
                                                           target)
                     await asyncio.sleep(max(
-                        HISTORY_DELAY - (time.time() - start), 0))
+                        HISTORY_DELAY - (time.time() - start), 0),
+                        loop=self.loop
+                    )
                 else:
                     log_req = None
 
