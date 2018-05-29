@@ -303,7 +303,6 @@ class Downloader:
         self._incomplete_download = None
 
     async def _media_consumer(self, queue, bar):
-        # TODO Delete half-downloaded files
         while self._running:
             start = time.time()
             media_id, context_id, sender_id, date = await queue.get()
@@ -441,11 +440,12 @@ class Downloader:
                 hash=0
             )
 
-            admin = (isinstance(target_in, types.InputPeerChat) or (
-                isinstance(target, types.Channel)
-                and (target.megagroup or target.admin_rights is not None)
-            ))
-            if admin:
+            is_channel = isinstance(target_in, types.InputPeerChat) or (
+                    isinstance(target, types.Channel))
+            can_get_participants = is_channel and (target.megagroup or
+                    target.admin_rights is not None)
+
+            if is_channel and can_get_participants:
                 try:
                     __log__.info('Getting participants...')
                     participants = await self.client.get_participants(target_in)
@@ -457,7 +457,7 @@ class Downloader:
                 except ChatAdminRequiredError:
                     __log__.info('Getting participants aborted (admin '
                                  'rights revoked while getting them).')
-            else:
+            elif is_channel and not can_get_participants:
                 __log__.info('Not getting participants since we are not admin.')
 
             req.offset_id, req.offset_date, stop_at = self.dumper.get_resume(
