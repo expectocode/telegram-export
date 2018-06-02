@@ -698,20 +698,6 @@ class Dumper:
         ).fetchone()
         return tuple_[0] if tuple_ else 0
 
-    def update_last_dumped_message(self, context_id, msg_id):
-        """Updates the last dumped message"""
-
-        try:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO LastMessage VALUES (?,?)",
-                (context_id, msg_id)
-            )
-            self.conn.commit()
-        except sqlite3.IntegrityError as error:
-            self.conn.rollback()
-            logger.error("Integrity error: %s", str(error))
-            raise
-
     def get_resume(self, context_id):
         """
         For the given context ID, return a tuple consisting of the offset
