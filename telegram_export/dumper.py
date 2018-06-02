@@ -224,7 +224,7 @@ class Dumper:
 
             c.execute("CREATE TABLE ResumeMedia("
                       "MediaID INT NOT NULL,"
-                      "ContextID TEXT NOT NULL,"
+                      "ContextID INT NOT NULL,"
                       "SenderID INT,"
                       "Date INT,"
                       "PRIMARY KEY (MediaID)) WITHOUT ROWID")
