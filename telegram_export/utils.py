@@ -9,6 +9,7 @@ ENTITY_TO_TEXT = {
     types.MessageEntityBold: 'bold',
     types.MessageEntityItalic: 'italic',
     types.MessageEntityTextUrl: 'texturl',
+    types.MessageEntityUrl: 'url',
     types.MessageEntityMentionName: 'mentionname'
 }
 
