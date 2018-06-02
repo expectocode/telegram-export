@@ -129,7 +129,8 @@ def parse_args():
     parser.add_argument('--contexts', type=str,
                         help='list of contexts to act on eg --contexts=12345, '
                              '@username (see example config whitelist for '
-                             'full rules). Overrides whitelist/blacklist.')
+                             'full rules). Overrides whitelist/blacklist. '
+                             'The = is required when providing multiple values.')
 
     parser.add_argument('--format-contexts', type=int, nargs='+',
                         help='list of contexts to format eg --format-contexts='
