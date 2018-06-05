@@ -2,6 +2,11 @@
 import mimetypes
 
 from telethon.tl import types
+from urllib.parse import urlparse
+try:
+    import socks
+except ImportError:
+    socks = None
 
 ENTITY_TO_TEXT = {
     types.MessageEntityPre: 'pre',
@@ -212,3 +217,42 @@ def action_to_name(action):
         types.ChannelAdminLogEventActionToggleSignatures: 'toggle.signatures',
         types.ChannelAdminLogEventActionUpdatePinned: 'update.pinned',
     }.get(type(action), None)
+
+
+def parse_proxy_str(proxy_str):
+    """
+    Returns proxy from given string
+    """
+    if socks is None:
+        raise Exception('Please install PySocks if you want to use a proxy')
+    url_parser = urlparse(proxy_str)
+    proxy_type = None
+    proxy_type_str = url_parser.scheme
+    
+    if proxy_type_str.lower() == "socks5":
+        proxy_type = socks.SOCKS5
+    elif proxy_type_str.lower() == "socks4":
+        proxy_type = socks.SOCKS4
+    elif proxy_type_str.lower() == "https":
+        proxy_type = socks.HTTP
+    elif proxy_type_str.lower() == "http":
+        proxy_type = socks.HTTP
+    else:
+        raise ValueError("Proxy type %s is not supported" % proxy_type)
+
+    host = url_parser.hostname
+    port = url_parser.port
+
+    if host is None:
+        raise ValueError("Host parsing error")
+    if port is None:
+        raise ValueError("Port parsing error")
+
+    user = url_parser.username
+    password = url_parser.password
+
+    if user is not None and password is not None:
+        proxy = (proxy_type, host, port, True, user, password)
+    else:
+        proxy = (proxy_type, host, port)
+    return proxy

@@ -31,6 +31,7 @@ setup(
         'async_generator'  # Python 3.5 async gen support
     ],
     scripts=['bin/telegram-export'],
+    test_suite='telegram_export.tests',
     project_urls={
         'Bug Reports': 'https://github.com/expectocode/telegram-export/issues',
         'Source': 'https://github.com/expectocode/telegram-export'
