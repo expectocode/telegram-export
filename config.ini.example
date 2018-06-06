@@ -28,16 +28,24 @@ OutputDirectory = .
 
 # Either Whitelist or Blacklist should be present, not both. If both are
 # present, only Whitelist will be used.
-# * Whitelist will backup only the usernames, phones or IDs listed.
-# * Blacklist will backup everything but listed.
-# Phones start with '+' (no quotes), and items separated by comma.
+# These are lists of "entities", which can be usernames, phone numbers, or
+# telegram IDs.
+# - Whitelist will backup only the entities listed.
+# - Blacklist will backup everything except the ones listed.
 # It's usually  a good idea to set a whitelist, as otherwise you will have
 # to wait for lots of dialogs you don't care about to be downloaded. You can
 # get a list of dialogs and their associated IDs by running
 # `telegram-export.py --list-dialogs`
-Whitelist = example, username : My friend,
-			-1001132836449: telegram-export group
-# Don't forget your commas!
+# # The list must be a comma separated list of entities. You may have an
+# optional comment on an entry by using the : symbol. For example,
+#
+# Blacklist = @username : this is a comment, -1001132836449 :another comment,
+# +12345678, +232525252 : the previous phone number had no comment.
+# Phones must start with '+'  as shown. Usernames can be with or without @
+Whitelist = @example, username, -1001132836449
+# Don't forget your commas! If you miss one after a comment, everything until
+# the next comma will be treated as a comment.
+
 
 ############################# 'Advanced Options' #############################
 
