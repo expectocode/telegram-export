@@ -11,7 +11,7 @@ with open("README.rst", "r") as readme:
 
 setup(
     name='telegram-export',
-    version='0.1.4.3',
+    version='0.1.5',
     description='A tool to download Telegram data (users, chats, messages, '
                 'and media) into a database (and display the saved data).',
     long_description=desc,
@@ -19,7 +19,7 @@ setup(
     author='expectocode and Lonami',
     author_email='expectocode@gmail.com',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)',
         'Programming Language :: Python :: 3'
