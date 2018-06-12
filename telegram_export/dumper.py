@@ -90,7 +90,7 @@ class Dumper:
                 # Sometimes there may be a table without values (see #55)
                 c.execute("DROP TABLE IF EXISTS Version")
                 exists = False
-            elif if version[0] != DB_VERSION:
+            elif version[0] != DB_VERSION:
                 self._upgrade_database(old=version[0])
                 self.conn.commit()
         if not exists:
