@@ -81,14 +81,19 @@ class Dumper:
         c.execute("SELECT name FROM sqlite_master "
                   "WHERE type='table' AND name='Version'")
 
-        if c.fetchone():
+        exists = bool(c.fetchone())
+        if exists:
             # Tables already exist, check for the version
             c.execute("SELECT Version FROM Version")
-            version = c.fetchone()[0]
-            if version != DB_VERSION:
-                self._upgrade_database(old=version)
+            version = c.fetchone()
+            if not version:
+                # Sometimes there may be a table without values (see #55)
+                c.execute("DROP TABLE IF EXISTS Version")
+                exists = False
+            elif if version[0] != DB_VERSION:
+                self._upgrade_database(old=version[0])
                 self.conn.commit()
-        else:
+        if not exists:
             # Tables don't exist, create new ones
             c.execute("CREATE TABLE Version (Version INTEGER)")
             c.execute("CREATE TABLE SelfInformation (UserID INTEGER)")
