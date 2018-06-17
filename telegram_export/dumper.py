@@ -143,7 +143,7 @@ class Dumper:
                       "CommonChatsCount INT NOT NULL,"
                       "PictureID INT,"
                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+                      "PRIMARY KEY (ID, DateUpdated))")
 
             c.execute("CREATE TABLE Channel("
                       "ID INT NOT NULL,"
@@ -154,7 +154,7 @@ class Dumper:
                       "PictureID INT,"
                       "PinMessageID INT,"
                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+                      "PRIMARY KEY (ID, DateUpdated))")
 
             c.execute("CREATE TABLE Supergroup("
                       "ID INT NOT NULL,"
@@ -165,7 +165,7 @@ class Dumper:
                       "PictureID INT,"
                       "PinMessageID INT,"
                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+                      "PRIMARY KEY (ID, DateUpdated))")
 
             c.execute("CREATE TABLE Chat("
                       "ID INT NOT NULL,"
@@ -174,14 +174,14 @@ class Dumper:
                       "MigratedToID INT,"
                       "PictureID INT,"
                       "FOREIGN KEY (PictureID) REFERENCES Media(ID),"
-                      "PRIMARY KEY (ID, DateUpdated)) WITHOUT ROWID")
+                      "PRIMARY KEY (ID, DateUpdated))")
 
             c.execute("CREATE TABLE ChatParticipants("
                       "ContextID INT NOT NULL,"
                       "DateUpdated INT NOT NULL,"
                       "Added TEXT NOT NULL,"
                       "Removed TEXT NOT NULL,"
-                      "PRIMARY KEY (ContextID, DateUpdated)) WITHOUT ROWID")
+                      "PRIMARY KEY (ContextID, DateUpdated))")
 
             c.execute("CREATE TABLE Message("
                       "ID INT NOT NULL,"
@@ -199,7 +199,7 @@ class Dumper:
                       # a MessageService
                       "FOREIGN KEY (ForwardID) REFERENCES Forward(ID),"
                       "FOREIGN KEY (MediaID) REFERENCES Media(ID),"
-                      "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
+                      "PRIMARY KEY (ID, ContextID))")
 
             c.execute("CREATE TABLE AdminLog("
                       "ID INT NOT NULL,"
@@ -212,27 +212,27 @@ class Dumper:
                       "Data TEXT,"  # JSON data of the entire action
                       "FOREIGN KEY (MediaID1) REFERENCES Media(ID),"
                       "FOREIGN KEY (MediaID2) REFERENCES Media(ID),"
-                      "PRIMARY KEY (ID, ContextID)) WITHOUT ROWID")
+                      "PRIMARY KEY (ID, ContextID))")
 
             c.execute("CREATE TABLE Resume("
                       "ContextID INT NOT NULL,"
                       "ID INT NOT NULL,"
                       "Date INT NOT NULL,"
                       "StopAt INT NOT NULL,"
-                      "PRIMARY KEY (ContextID)) WITHOUT ROWID")
+                      "PRIMARY KEY (ContextID))")
 
             c.execute("CREATE TABLE ResumeEntity("
                       "ContextID INT NOT NULL,"
                       "ID INT NOT NULL,"
                       "AccessHash INT,"
-                      "PRIMARY KEY (ContextID, ID)) WITHOUT ROWID")
+                      "PRIMARY KEY (ContextID, ID))")
 
             c.execute("CREATE TABLE ResumeMedia("
                       "MediaID INT NOT NULL,"
                       "ContextID INT NOT NULL,"
                       "SenderID INT,"
                       "Date INT,"
-                      "PRIMARY KEY (MediaID)) WITHOUT ROWID")
+                      "PRIMARY KEY (MediaID))")
             self.conn.commit()
 
     def _upgrade_database(self, old):
