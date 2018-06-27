@@ -241,7 +241,7 @@ async def list_or_search_dialogs(args, client):
             for dialog in found:
                 print(fmt_dialog(dialog, id_pad, username_pad))
 
-    client.disconnect()
+    await client.disconnect()
 
 
 async def main(loop):
@@ -296,7 +296,7 @@ async def main(loop):
         # in their respective `finally:` blocks to ensure it gets called.
         pass
     finally:
-        exporter.close()
+        await exporter.close()
 
     exporter.logger.info("Finished!")
 

@@ -1,4 +1,4 @@
 appdirs
-telethon-aio
+telethon==1.0post1
 tqdm
 PySocks

@@ -56,11 +56,11 @@ class Exporter:
         self.downloader = Downloader(client, config['Dumper'], dumper, loop)
         self.logger = logging.getLogger("exporter")
 
-    def close(self):
+    async def close(self):
         """Gracefully close the exporter"""
         # Downloader handles its own graceful exit
         self.logger.info("Closing exporter")
-        self.client.disconnect()
+        await self.client.disconnect()
         self.dumper.conn.close()
 
     async def start(self):
