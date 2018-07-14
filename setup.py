@@ -11,7 +11,8 @@ with open("README.rst", "r") as readme:
 
 setup(
     name='telegram-export',
-    version='0.1.6',
+    license="MPL 2.0",
+    version='1.7',
     description='A tool to download Telegram data (users, chats, messages, '
                 'and media) into a database (and display the saved data).',
     long_description=desc,
