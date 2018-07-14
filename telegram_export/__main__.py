@@ -271,13 +271,22 @@ async def main(loop):
         config['Dumper']['OutputDirectory'],
         config['TelegramAPI']['SessionName']
     )
-    client = await (TelegramClient(
-        absolute_session_name,
-        config['TelegramAPI']['ApiId'],
-        config['TelegramAPI']['ApiHash'],
-        loop=loop,
-        proxy=proxy
-    ).start(config['TelegramAPI']['PhoneNumber']))
+    if config.has_option('TelegramAPI', 'SecondFactorPassword'):
+        client = await (TelegramClient(
+                absolute_session_name,
+                config['TelegramAPI']['ApiId'],
+                config['TelegramAPI']['ApiHash'],
+                loop=loop,
+                proxy=proxy
+            ).start(config['TelegramAPI']['PhoneNumber'], password=config['TelegramAPI']['SecondFactorPassword']))
+    else:
+        client = await (TelegramClient(
+            absolute_session_name,
+            config['TelegramAPI']['ApiId'],
+            config['TelegramAPI']['ApiHash'],
+            loop=loop,
+            proxy=proxy
+        ).start(config['TelegramAPI']['PhoneNumber']))
 
     if args.list_dialogs or args.search_string:
         return await list_or_search_dialogs(args, client)

@@ -14,6 +14,9 @@ ApiHash = 0123456789abcdef0123456789abcdef
 # Your phone number. You must supply this. Should start with +country code eg +44.
 PhoneNumber = xxxxxxxxxx
 
+# Your 2FA password, if necessary. Leave commented if not.
+# SecondFactorPassword = xxxxxxxxxx
+
 # This can be anything
 ; SessionName = exporter
 SessionName = exporter
