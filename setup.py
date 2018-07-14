@@ -27,7 +27,7 @@ setup(
     keywords='Telegram messaging database',
     packages=find_packages(),
     install_requires=[
-        'tqdm', 'telethon-aio', 'appdirs',
+        'tqdm', 'telethon', 'appdirs',
         'async_generator'  # Python 3.5 async gen support
     ],
     scripts=['bin/telegram-export'],
