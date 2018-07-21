@@ -1,6 +1,9 @@
 telegram-export
 ===============
 
+.. figure:: https://user-images.githubusercontent.com/15344581/43033282-3eff18fc-8ce5-11e8-9994-fd1de40268e1.png
+   :alt: Logo
+
 A tool to download Telegram data (users, chats, messages, and media)
 into a database (and display the saved data).
 
