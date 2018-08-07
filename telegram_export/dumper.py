@@ -388,7 +388,7 @@ class Dumper:
         # Rationale for UserFull rather than User is to get bio
         values = (user_full.user.id,
                   timestamp or round(time.time()),
-                  user_full.user.first_name,
+                  user_full.user.first_name or '',
                   user_full.user.last_name,
                   user_full.user.username,
                   user_full.user.phone,
