@@ -10,16 +10,15 @@ from .downloader import Downloader
 
 
 @async_generator
-async def entities_from_str(client, string):
+async def entities_from_str(method, string):
     """Helper function to load entities from the config file"""
     for who in string.split(','):
         if not who.strip():
             continue
         who = who.split(':', 1)[0].strip()  # Ignore anything after ':'
         if re.match(r'[^+]-?\d+', who):
-            await yield_(await client.get_input_entity(int(who)))
-        else:
-            await yield_(await client.get_input_entity(who))
+            who = int(who)
+        await yield_(await method(who))
 
 
 @async_generator
@@ -33,19 +32,18 @@ async def get_entities_iter(mode, in_list, client):
     mode = mode.lower()
     if mode == 'whitelist':
         assert client is not None
-        async for ent in entities_from_str(client, in_list):
+        async for ent in entities_from_str(client.get_input_entity, in_list):
             await yield_(ent)
-    if mode == 'blacklist':
+    elif mode == 'blacklist':
         assert client is not None
-        blacklist = entities_from_str(client, in_list)
         avoid = set()
-        async for entity in blacklist:
-            avoid.add(utils.get_peer_id(entity))
+        async for eid in entities_from_str(client.get_peer_id, in_list):
+            avoid.add(eid)
+
         # TODO Should this get_dialogs call be cached? How?
-        for dialog in await client.get_dialogs(limit=None):
-            if utils.get_peer_id(dialog.entity) not in avoid:
-                await yield_(dialog.entity)
-        return
+        async for dialog in client.iter_dialogs():
+            if dialog.id not in avoid:
+                await yield_(dialog.input_entity)
 
 
 class Exporter:
