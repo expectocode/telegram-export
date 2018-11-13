@@ -14,7 +14,8 @@ ApiHash = 0123456789abcdef0123456789abcdef
 # Your phone number. You must supply this. Should start with +country code eg +44.
 PhoneNumber = xxxxxxxxxx
 
-# Your 2FA password, if necessary. Leave commented if not.
+# You can store your 2FA Password here if you don't want to enter it when logging in.
+# It's more secure to not store your password in plain text
 # SecondFactorPassword = xxxxxxxxxx
 
 # This can be anything
