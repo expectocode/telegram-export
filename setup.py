@@ -12,7 +12,7 @@ with open("README.rst", "r") as readme:
 setup(
     name='telegram-export',
     license="MPL 2.0",
-    version='1.8',
+    version='1.8.2',
     description='A tool to download Telegram data (users, chats, messages, '
                 'and media) into a database (and display the saved data).',
     long_description=desc,
@@ -28,7 +28,7 @@ setup(
     keywords='Telegram messaging database',
     packages=find_packages(),
     install_requires=[
-        'tqdm', 'telethon', 'appdirs',
+        'tqdm', 'telethon~=1.4.3', 'appdirs',
         'async_generator'  # Python 3.5 async gen support
     ],
     scripts=['bin/telegram-export'],
