@@ -7,6 +7,14 @@ telegram-export
 A tool to download Telegram data (users, chats, messages, and media)
 into a database (and display the saved data).
 
+This project is currently archived.
+===================================
+
+**The main owners no longer contribute to this repository, because Telegram updates and schema changes make it very tedious work, and we have lost interest on the project.**
+
+**As an alternative, some clients like Telegram Desktop now have a built-in "Export chat history" feature (in the three-dots menu of every chat) which you may use as a replacement.**
+
+
 **Database schema:**
 
 .. figure:: https://user-images.githubusercontent.com/15344581/37377008-44c93d20-271f-11e8-8170-5d6071a21b8f.png
